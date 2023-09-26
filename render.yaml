@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./Dockerfile
     repo: https://github.com/logspace-ai/langflow
     branch: main
-    plan:free
+    plan: free
     healthCheckPath: /health
     autoDeploy: false
     envVars:
