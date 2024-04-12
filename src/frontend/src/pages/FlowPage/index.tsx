@@ -1,43 +1,47 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams } from "react-router-dom";
+import FlowToolbar from "../../components/chatComponent";
 import Header from "../../components/headerComponent";
-import { TabsContext } from "../../contexts/tabsContext";
-import { getVersion } from "../../controllers/API";
+import { useDarkStore } from "../../stores/darkStore";
+import useFlowsManagerStore from "../../stores/flowsManagerStore";
 import Page from "./components/PageComponent";
+import ExtraSidebar from "./components/extraSidebarComponent";
 
-export default function FlowPage(): JSX.Element {
-  const { flows, tabId, setTabId } = useContext(TabsContext);
+export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
+  const setCurrentFlowId = useFlowsManagerStore(
+    (state) => state.setCurrentFlowId
+  );
+  const version = useDarkStore((state) => state.version);
+  const currentFlow = useFlowsManagerStore((state) => state.currentFlow);
   const { id } = useParams();
 
   // Set flow tab id
   useEffect(() => {
-    setTabId(id!);
+    setCurrentFlowId(id!);
   }, [id]);
-
-  // Initialize state variable for the version
-  const [version, setVersion] = useState("");
-  useEffect(() => {
-    getVersion().then((data) => {
-      setVersion(data.version);
-    });
-  }, []);
-
   return (
     <>
       <Header />
       <div className="flow-page-positioning">
-        {flows.length > 0 &&
-          tabId !== "" &&
-          flows.findIndex((flow) => flow.id === tabId) !== -1 && (
-            <Page flow={flows.find((flow) => flow.id === tabId)!} />
-          )}
+        {currentFlow && (
+          <div className="flex h-full overflow-hidden">
+            {!view && <ExtraSidebar />}
+            <main className="flex flex-1">
+              {/* Primary column */}
+              <div className="h-full w-full">
+                <Page flow={currentFlow} />
+              </div>
+              {!view && <FlowToolbar />}
+            </main>
+          </div>
+        )}
         <a
           target={"_blank"}
-          href="https://logspace.ai/"
+          href="https://medium.com/logspace/langflow-datastax-better-together-1b7462cebc4d"
           className="logspace-page-icon"
         >
-          {version && <div className="mt-1">⛓️ Langflow v{version}</div>}
-          <div className={version ? "mt-2" : "mt-1"}>Created by Logspace</div>
+          {version && <div className="mt-1">Langflow 🤝 DataStax</div>}
+          <div className={version ? "mt-2" : "mt-1"}>⛓️ v{version}</div>
         </a>
       </div>
     </>

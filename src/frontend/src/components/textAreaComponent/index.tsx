@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { EDIT_TEXT_MODAL_TITLE } from "../../constants/constants";
 import { TypeModal } from "../../constants/enums";
 import GenericModal from "../../modals/genericModal";
 import { TextAreaComponentType } from "../../types/components";
@@ -10,45 +11,52 @@ export default function TextAreaComponent({
   onChange,
   disabled,
   editNode = false,
+  id = "",
 }: TextAreaComponentType): JSX.Element {
   // Clear text area
   useEffect(() => {
-    if (disabled) {
+    if (disabled && value !== "") {
       onChange("");
     }
   }, [disabled]);
 
   return (
-    <div className="flex w-full items-center">
-      <Input
-        value={value}
-        disabled={disabled}
-        className={editNode ? "input-edit-node" : ""}
-        placeholder={"Type something..."}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-      />
-      <div>
-        <GenericModal
-          type={TypeModal.TEXT}
-          buttonText="Finishing Editing"
-          modalTitle="Edit Text"
+    <div className={"flex w-full items-center " + (disabled ? "" : "")}>
+      <div className="flex w-full items-center" data-testid={"div-" + id}>
+        <Input
+          id={id}
+          data-testid={id}
           value={value}
-          setValue={(value: string) => {
-            onChange(value);
+          disabled={disabled}
+          className={editNode ? "input-edit-node w-full" : " w-full"}
+          placeholder={"Type something..."}
+          onChange={(event) => {
+            onChange(event.target.value);
           }}
-        >
-          {!editNode && (
-            <IconComponent
-              name="ExternalLink"
-              className={
-                "icons-parameters-comp" +
-                (disabled ? " text-ring" : " hover:text-accent-foreground")
-              }
-            />
-          )}
-        </GenericModal>
+        />
+        <div>
+          <GenericModal
+            type={TypeModal.TEXT}
+            buttonText="Finish Editing"
+            modalTitle={EDIT_TEXT_MODAL_TITLE}
+            value={value}
+            setValue={(value: string) => {
+              onChange(value);
+            }}
+          >
+            {!editNode && (
+              <IconComponent
+                strokeWidth={1.5}
+                id={id}
+                name="ExternalLink"
+                className={
+                  "icons-parameters-comp w-[1.35rem]" +
+                  (disabled ? " text-ring" : " hover:text-accent-foreground")
+                }
+              />
+            )}
+          </GenericModal>
+        </div>
       </div>
     </div>
   );

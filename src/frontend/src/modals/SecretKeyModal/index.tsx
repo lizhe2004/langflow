@@ -1,16 +1,12 @@
 import * as Form from "@radix-ui/react-form";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import IconComponent from "../../components/genericIconComponent";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { CONTROL_NEW_API_KEY } from "../../constants/constants";
-import { alertContext } from "../../contexts/alertContext";
+import { COPIED_NOTICE_ALERT } from "../../constants/alerts_constants";
 import { createApiKey } from "../../controllers/API";
-import {
-  ApiKeyInputType,
-  ApiKeyType,
-  inputHandlerEventType,
-} from "../../types/components";
+import useAlertStore from "../../stores/alertStore";
+import { ApiKeyType } from "../../types/components";
 import { nodeIconsLucide } from "../../utils/styleUtils";
 import BaseModal from "../baseModal";
 
@@ -27,18 +23,10 @@ export default function SecretKeyModal({
   const [open, setOpen] = useState(false);
   const [apiKeyName, setApiKeyName] = useState(data?.apikeyname ?? "");
   const [apiKeyValue, setApiKeyValue] = useState("");
-  const [inputState, setInputState] =
-    useState<ApiKeyInputType>(CONTROL_NEW_API_KEY);
   const [renderKey, setRenderKey] = useState(false);
   const [textCopied, setTextCopied] = useState(true);
-  const { setSuccessData } = useContext(alertContext);
+  const setSuccessData = useAlertStore((state) => state.setSuccessData);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  function handleInput({
-    target: { name, value },
-  }: inputHandlerEventType): void {
-    setInputState((prev) => ({ ...prev, [name]: value }));
-  }
 
   useEffect(() => {
     if (open) {
@@ -60,7 +48,7 @@ export default function SecretKeyModal({
       inputRef?.current?.focus();
       inputRef?.current?.select();
       setSuccessData({
-        title: "API Key copied!",
+        title: COPIED_NOTICE_ALERT,
       });
       setTextCopied(false);
 
@@ -101,14 +89,7 @@ export default function SecretKeyModal({
             </span>
             <div className="flex pt-3">
               <div className="w-full">
-                <Input
-                  ref={inputRef}
-                  onChange={(event) => {
-                    setApiKeyValue(event.target.value);
-                  }}
-                  readOnly={true}
-                  value={apiKeyValue}
-                />
+                <Input ref={inputRef} readOnly={true} value={apiKeyValue} />
               </div>
 
               <div>
@@ -153,7 +134,6 @@ export default function SecretKeyModal({
                 <Form.Control asChild>
                   <input
                     onChange={({ target: { value } }) => {
-                      handleInput({ target: { name: "apikeyname", value } });
                       setApiKeyName(value);
                     }}
                     value={apiKeyName}

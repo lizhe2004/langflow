@@ -10,7 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from "../../components/ui/table";
-import { alertContext } from "../../contexts/alertContext";
 import { AuthContext } from "../../contexts/authContext";
 import { deleteApiKey, getApiKey } from "../../controllers/API";
 import ConfirmationModal from "../../modals/ConfirmationModal";
@@ -19,17 +18,23 @@ import SecretKeyModal from "../../modals/SecretKeyModal";
 import moment from "moment";
 import Header from "../../components/headerComponent";
 import {
+  DEL_KEY_ERROR_ALERT,
+  DEL_KEY_SUCCESS_ALERT,
+} from "../../constants/alerts_constants";
+import {
   API_PAGE_PARAGRAPH_1,
   API_PAGE_PARAGRAPH_2,
   API_PAGE_USER_KEYS,
   LAST_USED_SPAN_1,
   LAST_USED_SPAN_2,
 } from "../../constants/constants";
+import useAlertStore from "../../stores/alertStore";
 import { ApiKey } from "../../types/components";
 
 export default function ApiKeysPage() {
   const [loadingKeys, setLoadingKeys] = useState(true);
-  const { setErrorData, setSuccessData } = useContext(alertContext);
+  const setSuccessData = useAlertStore((state) => state.setSuccessData);
+  const setErrorData = useAlertStore((state) => state.setErrorData);
   const { userData } = useContext(AuthContext);
   const [userId, setUserId] = useState("");
   const keysList = useRef([]);
@@ -62,12 +67,12 @@ export default function ApiKeysPage() {
       .then((res) => {
         resetFilter();
         setSuccessData({
-          title: "Success! Key deleted!",
+          title: DEL_KEY_SUCCESS_ALERT,
         });
       })
       .catch((error) => {
         setErrorData({
-          title: "Error on delete key",
+          title: DEL_KEY_ERROR_ALERT,
           list: [error["response"]["data"]["detail"]],
         });
       });
@@ -224,7 +229,6 @@ export default function ApiKeysPage() {
                                           title="Delete"
                                           titleHeader="Delete User"
                                           modalContentTitle="Attention!"
-                                          modalContent="Are you sure you want to delete this key? This action cannot be undone."
                                           cancelText="Cancel"
                                           confirmationText="Delete"
                                           icon={"UserMinus2"}
@@ -234,15 +238,19 @@ export default function ApiKeysPage() {
                                             handleDeleteKey(keys);
                                           }}
                                         >
-                                          <ShadTooltip
-                                            content="Delete"
-                                            side="top"
-                                          >
+                                          <ConfirmationModal.Content>
+                                            <span>
+                                              Are you sure you want to delete
+                                              this key? This action cannot be
+                                              undone.
+                                            </span>
+                                          </ConfirmationModal.Content>
+                                          <ConfirmationModal.Trigger>
                                             <IconComponent
                                               name="Trash2"
                                               className="ml-2 h-4 w-4 cursor-pointer"
                                             />
-                                          </ShadTooltip>
+                                          </ConfirmationModal.Trigger>
                                         </ConfirmationModal>
                                       </div>
                                     </TableCell>

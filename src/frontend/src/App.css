@@ -2,15 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent react flow to overflow the page */
+body {
+  overflow: hidden;
+}
+
 .App {
   text-align: center;
 }
 
 .react-flow__node {
-	width: auto;
-	height: auto;
-	border-radius: auto;
-	min-width: inherit;
+  width: auto;
+  height: auto;
+  border-radius: auto;
+  min-width: inherit;
 }
 
 .App-logo {
@@ -85,3 +90,12 @@
 .jv-indent::-webkit-scrollbar-thumb:hover {
   background-color: #bbb !important;
 }
+
+.custom-hover {
+  transition: background-color 0.5s ease;
+}
+
+.custom-hover:hover {
+  background-color: rgba(99, 102, 241, 0.1); /* Medium indigo color with 20% opacity */
+}
+

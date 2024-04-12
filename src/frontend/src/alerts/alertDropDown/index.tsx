@@ -1,23 +1,29 @@
-import { useContext, useState } from "react";
+import { Cross2Icon } from "@radix-ui/react-icons";
+import { useState } from "react";
 import IconComponent from "../../components/genericIconComponent";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "../../components/ui/popover";
-import { alertContext } from "../../contexts/alertContext";
+import { ZERO_NOTIFICATIONS } from "../../constants/constants";
+import useAlertStore from "../../stores/alertStore";
 import { AlertDropdownType } from "../../types/alerts";
 import SingleAlert from "./components/singleAlertComponent";
 
 export default function AlertDropdown({
   children,
 }: AlertDropdownType): JSX.Element {
-  const {
-    notificationList,
-    clearNotificationList,
-    removeFromNotificationList,
-    setNotificationCenter,
-  } = useContext(alertContext);
+  const notificationList = useAlertStore((state) => state.notificationList);
+  const clearNotificationList = useAlertStore(
+    (state) => state.clearNotificationList
+  );
+  const removeFromNotificationList = useAlertStore(
+    (state) => state.removeFromNotificationList
+  );
+  const setNotificationCenter = useAlertStore(
+    (state) => state.setNotificationCenter
+  );
 
   const [open, setOpen] = useState(false);
 
@@ -30,7 +36,7 @@ export default function AlertDropdown({
       }}
     >
       <PopoverTrigger>{children}</PopoverTrigger>
-      <PopoverContent className="flex h-[500px] w-[500px] flex-col">
+      <PopoverContent className="nocopy nopan nodelete nodrag noundo flex h-[500px] w-[500px] flex-col">
         <div className="text-md flex flex-row justify-between pl-3 font-medium text-foreground">
           Notifications
           <div className="flex gap-3 pr-3 ">
@@ -41,15 +47,15 @@ export default function AlertDropdown({
                 setTimeout(clearNotificationList, 100);
               }}
             >
-              <IconComponent name="Trash2" className="h-[1.1rem] w-[1.1rem]" />
+              <IconComponent name="Trash2" className="h-4 w-4" />
             </button>
             <button
-              className="text-foreground hover:text-status-red"
+              className="text-foreground opacity-70 hover:opacity-100"
               onClick={() => {
                 setOpen(false);
               }}
             >
-              <IconComponent name="X" className="h-5 w-5" />
+              <Cross2Icon className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -64,7 +70,7 @@ export default function AlertDropdown({
             ))
           ) : (
             <div className="flex h-full w-full items-center justify-center pb-16 text-ring">
-              No new notifications
+              {ZERO_NOTIFICATIONS}
             </div>
           )}
         </div>

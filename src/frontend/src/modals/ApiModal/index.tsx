@@ -13,9 +13,12 @@ import {
 // import "ace-builds/webpack-resolver";
 import CodeTabsComponent from "../../components/codeTabsComponent";
 import IconComponent from "../../components/genericIconComponent";
-import { EXPORT_CODE_DIALOG } from "../../constants/constants";
+import {
+  EXPORT_CODE_DIALOG,
+  LANGFLOW_SUPPORTED_TYPES,
+} from "../../constants/constants";
 import { AuthContext } from "../../contexts/authContext";
-import { TabsContext } from "../../contexts/tabsContext";
+import useFlowStore from "../../stores/flowStore";
 import { TemplateVariableType } from "../../types/api";
 import { tweakType, uniqueTweakType } from "../../types/components";
 import { FlowType, NodeType } from "../../types/flow/index";
@@ -45,16 +48,12 @@ const ApiModal = forwardRef(
     const [activeTab, setActiveTab] = useState("0");
     const tweak = useRef<tweakType>([]);
     const tweaksList = useRef<string[]>([]);
-    const { setTweak, getTweak, tabsState } = useContext(TabsContext);
-    const pythonApiCode = getPythonApiCode(
-      flow,
-      autoLogin,
-      tweak.current,
-      tabsState
-    );
-    const curl_code = getCurlCode(flow, autoLogin, tweak.current, tabsState);
-    const pythonCode = getPythonCode(flow, tweak.current, tabsState);
-    const widgetCode = getWidgetCode(flow, autoLogin, tabsState);
+    const [getTweak, setTweak] = useState<tweakType>([]);
+    const flowState = useFlowStore((state) => state.flowState);
+    const pythonApiCode = getPythonApiCode(flow, autoLogin, tweak.current);
+    const curl_code = getCurlCode(flow, autoLogin, tweak.current);
+    const pythonCode = getPythonCode(flow, tweak.current);
+    const widgetCode = getWidgetCode(flow, autoLogin, flowState);
     const tweaksCode = buildTweaks(flow);
     const codesArray = [
       curl_code,
@@ -94,20 +93,17 @@ const ApiModal = forwardRef(
       let arrNodesWithValues: string[] = [];
 
       flow["data"]!["nodes"].forEach((node) => {
+        if (!node["data"]["node"]["template"]) {
+          return;
+        }
         Object.keys(node["data"]["node"]["template"])
           .filter(
             (templateField) =>
               templateField.charAt(0) !== "_" &&
               node.data.node.template[templateField].show &&
-              (node.data.node.template[templateField].type === "str" ||
-                node.data.node.template[templateField].type === "bool" ||
-                node.data.node.template[templateField].type === "float" ||
-                node.data.node.template[templateField].type === "code" ||
-                node.data.node.template[templateField].type === "prompt" ||
-                node.data.node.template[templateField].type === "file" ||
-                node.data.node.template[templateField].type === "int" ||
-                node.data.node.template[templateField].type === "dict" ||
-                node.data.node.template[templateField].type === "NestedDict")
+              LANGFLOW_SUPPORTED_TYPES.has(
+                node.data.node.template[templateField].type
+              )
           )
           .map((n, i) => {
             arrNodesWithValues.push(node["id"]);
@@ -133,8 +129,12 @@ const ApiModal = forwardRef(
         changes = changes?.filter((x) => x !== "");
       }
 
-      if (template.type === "dict") {
+      if (template.type === "dict" && Array.isArray(changes)) {
         changes = convertArrayToObj(changes);
+      }
+
+      if (template.type === "NestedDict") {
+        changes = JSON.stringify(changes);
       }
 
       const existingTweak = tweak.current.find((element) =>
@@ -142,9 +142,9 @@ const ApiModal = forwardRef(
       );
 
       if (existingTweak) {
-        existingTweak[tw][template["name"]] = changes as string;
+        existingTweak[tw][template["name"]!] = changes as string;
 
-        if (existingTweak[tw][template["name"]] == template.value) {
+        if (existingTweak[tw][template["name"]!] == template.value) {
           tweak.current.forEach((element) => {
             if (element[tw] && Object.keys(element[tw])?.length === 0) {
               tweak.current = tweak.current.filter((obj) => {
@@ -157,21 +157,16 @@ const ApiModal = forwardRef(
       } else {
         const newTweak = {
           [tw]: {
-            [template["name"]]: changes,
+            [template["name"]!]: changes,
           },
         } as uniqueTweakType;
         tweak.current.push(newTweak);
       }
 
-      const pythonApiCode = getPythonApiCode(
-        flow,
-        autoLogin,
-        tweak.current,
-        tabsState
-      );
-      const curl_code = getCurlCode(flow, autoLogin, tweak.current, tabsState);
-      const pythonCode = getPythonCode(flow, tweak.current, tabsState);
-      const widgetCode = getWidgetCode(flow, autoLogin, tabsState);
+      const pythonApiCode = getPythonApiCode(flow, autoLogin, tweak.current);
+      const curl_code = getCurlCode(flow, autoLogin, tweak.current);
+      const pythonCode = getPythonCode(flow, tweak.current);
+      const widgetCode = getWidgetCode(flow, autoLogin, flowState);
 
       tabs![0].code = curl_code;
       tabs![1].code = pythonApiCode;
@@ -220,7 +215,7 @@ const ApiModal = forwardRef(
       <BaseModal open={open} setOpen={setOpen}>
         <BaseModal.Trigger asChild>{children}</BaseModal.Trigger>
         <BaseModal.Header description={EXPORT_CODE_DIALOG}>
-          <span className="pr-2">Code</span>
+          <span className="pr-2">API</span>
           <IconComponent
             name="Code2"
             className="h-6 w-6 pl-1 text-gray-800 dark:text-white"

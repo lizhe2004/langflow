@@ -1,7 +1,7 @@
 # Test this:
-from langflow.interface.importing.utils import get_function
 import pytest
-from langflow.interface.tools.custom import PythonFunctionTool, PythonFunction
+from langflow.interface.custom.utils import get_function
+from langflow.interface.tools.custom import PythonFunction, PythonFunctionTool
 from langflow.utils import constants
 
 
@@ -18,9 +18,7 @@ def test_python_function_tool():
     with pytest.raises(SyntaxError):
         code = pytest.CODE_WITH_SYNTAX_ERROR
         func = get_function(code)
-        func = PythonFunctionTool(
-            name="Test", description="Testing", code=code, func=func
-        )
+        func = PythonFunctionTool(name="Test", description="Testing", code=code, func=func)
 
 
 def test_python_function():

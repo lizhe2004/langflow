@@ -1,7 +1,8 @@
 import json
-from langflow.graph import Graph
 
 import pytest
+
+from langflow.graph import Graph
 
 
 def get_graph(_type="basic"):
@@ -38,8 +39,9 @@ def langchain_objects_are_equal(obj1, obj2):
 
 
 # Test build_graph
-def test_build_graph(client, basic_data_graph):
+@pytest.mark.asyncio
+async def test_build_graph(client, basic_data_graph):
     graph = Graph.from_payload(basic_data_graph)
     assert graph is not None
-    assert len(graph.nodes) == len(basic_data_graph["nodes"])
+    assert len(graph.vertices) == len(basic_data_graph["nodes"])
     assert len(graph.edges) == len(basic_data_graph["edges"])

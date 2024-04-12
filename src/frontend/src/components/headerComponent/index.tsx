@@ -1,12 +1,17 @@
 import { useContext } from "react";
-import { FaDiscord, FaGithub, FaTwitter } from "react-icons/fa";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { FaDiscord, FaGithub } from "react-icons/fa";
+import { RiTwitterXFill } from "react-icons/ri";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import AlertDropdown from "../../alerts/alertDropDown";
 import { USER_PROJECTS_HEADER } from "../../constants/constants";
-import { alertContext } from "../../contexts/alertContext";
 import { AuthContext } from "../../contexts/authContext";
-import { darkContext } from "../../contexts/darkContext";
-import { TabsContext } from "../../contexts/tabsContext";
+
+import { Node } from "reactflow";
+import useAlertStore from "../../stores/alertStore";
+import { useDarkStore } from "../../stores/darkStore";
+import useFlowStore from "../../stores/flowStore";
+import useFlowsManagerStore from "../../stores/flowsManagerStore";
+import { useStoreStore } from "../../stores/storeStore";
 import { gradients } from "../../utils/styleUtils";
 import IconComponent from "../genericIconComponent";
 import { Button } from "../ui/button";
@@ -22,37 +27,53 @@ import { Separator } from "../ui/separator";
 import MenuBar from "./components/menuBar";
 
 export default function Header(): JSX.Element {
-  const { flows, tabId } = useContext(TabsContext);
-  const { dark, setDark } = useContext(darkContext);
-  const { notificationCenter } = useContext(alertContext);
+  const notificationCenter = useAlertStore((state) => state.notificationCenter);
   const location = useLocation();
   const { logout, autoLogin, isAdmin, userData } = useContext(AuthContext);
-  const { stars, gradientIndex } = useContext(darkContext);
   const navigate = useNavigate();
+  const removeFlow = useFlowsManagerStore((store) => store.removeFlow);
+  const hasStore = useStoreStore((state) => state.hasStore);
+  const { id } = useParams();
+  const nodes = useFlowStore((state) => state.nodes);
+
+  const dark = useDarkStore((state) => state.dark);
+  const setDark = useDarkStore((state) => state.setDark);
+  const stars = useDarkStore((state) => state.stars);
+
+  async function checkForChanges(nodes: Node[]): Promise<void> {
+    if (nodes.length === 0) {
+      await removeFlow(id!);
+    }
+  }
 
   return (
     <div className="header-arrangement">
-      <div className="header-start-display">
-        <Link to="/">
+      <div className="header-start-display lg:w-[30%]">
+        <Link to="/" onClick={() => checkForChanges(nodes)}>
           <span className="ml-4 text-2xl">⛓️</span>
         </Link>
-
-        {flows.findIndex((f) => tabId === f.id) !== -1 && tabId !== "" && (
-          <MenuBar flows={flows} tabId={tabId} />
-        )}
+        <MenuBar removeFunction={checkForChanges} />
       </div>
       <div className="round-button-div">
         <Link to="/">
           <Button
             className="gap-2"
-            variant={location.pathname === "/" ? "primary" : "secondary"}
+            variant={
+              location.pathname === "/flows" ||
+              location.pathname === "/components"
+                ? "primary"
+                : "secondary"
+            }
             size="sm"
+            onClick={() => {
+              checkForChanges(nodes);
+            }}
           >
             <IconComponent name="Home" className="h-4 w-4" />
-            <div className="flex-1">{USER_PROJECTS_HEADER}</div>
+            <div className="hidden flex-1 md:block">{USER_PROJECTS_HEADER}</div>
           </Button>
         </Link>
-        <Link to="/community">
+        {/* <Link to="/community">
           <Button
             className="gap-2"
             variant={
@@ -63,27 +84,43 @@ export default function Header(): JSX.Element {
             <IconComponent name="Users2" className="h-4 w-4" />
             <div className="flex-1">Community Examples</div>
           </Button>
-        </Link>
+        </Link> */}
+        {hasStore && (
+          <Link to="/store">
+            <Button
+              className="gap-2"
+              variant={location.pathname === "/store" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => {
+                checkForChanges(nodes);
+              }}
+              data-testid="button-store"
+            >
+              <IconComponent name="Store" className="h-4 w-4" />
+              <div className="flex-1">Store</div>
+            </Button>
+          </Link>
+        )}
       </div>
-      <div className="header-end-division">
+      <div className="header-end-division lg:w-[30%]">
         <div className="header-end-display">
           <a
-            href="https://github.com/logspace-ai/langflow"
+            href="https://github.com/langflow-ai/langflow"
             target="_blank"
             rel="noreferrer"
-            className="header-github-link"
+            className="header-github-link gap-2"
           >
-            <FaGithub className="mr-2 h-5 w-5" />
-            Star
-            <div className="header-github-display">{stars}</div>
+            <FaGithub className="h-5 w-5" />
+            <div className="hidden lg:block">Star</div>
+            <div className="header-github-display">{stars ?? 0}</div>
           </a>
           <a
-            href="https://twitter.com/logspace_ai"
+            href="https://twitter.com/langflow_ai"
             target="_blank"
             rel="noreferrer"
             className="text-muted-foreground"
           >
-            <FaTwitter className="side-bar-button-size" />
+            <RiTwitterXFill className="side-bar-button-size" />
           </a>
           <a
             href="https://discord.gg/EqksyE2EX9"
@@ -139,7 +176,10 @@ export default function Header(): JSX.Element {
                   <button
                     className={
                       "h-7 w-7 rounded-full focus-visible:outline-0 " +
-                      (userData?.profile_image ?? gradients[gradientIndex])
+                      (userData?.profile_image ??
+                        gradients[
+                          parseInt(userData?.id ?? "", 30) % gradients.length
+                        ])
                     }
                   />
                 </DropdownMenuTrigger>
@@ -164,7 +204,6 @@ export default function Header(): JSX.Element {
                     className="cursor-pointer"
                     onClick={() => {
                       logout();
-                      navigate("/login");
                     }}
                   >
                     Sign Out

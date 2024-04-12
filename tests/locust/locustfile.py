@@ -1,10 +1,11 @@
-from locust import FastHttpUser, task, between
 import random
 import time
-import orjson
-from rich import print
-import httpx
 from pathlib import Path
+
+import httpx
+import orjson
+from locust import FastHttpUser, between, task
+from rich import print
 
 
 class NameTest(FastHttpUser):
@@ -13,13 +14,13 @@ class NameTest(FastHttpUser):
     with open("names.txt", "r") as file:
         names = [line.strip() for line in file.readlines()]
 
-    headers = {}
+    headers: dict = {}
 
     def poll_task(self, task_id, sleep_time=1):
         while True:
             with self.rest(
                 "GET",
-                f"/task/{task_id}/status",
+                f"/task/{task_id}",
                 name="task_status",
                 headers=self.headers,
             ) as response:
@@ -66,9 +67,7 @@ class NameTest(FastHttpUser):
         result1, session_id = self.process(name, self.flow_id, payload1)
 
         payload2 = {
-            "inputs": {
-                "text": "What is my name? Please, answer like this: Your name is <name>"
-            },
+            "inputs": {"text": "What is my name? Please, answer like this: Your name is <name>"},
             "session_id": session_id,
             "sync": False,
         }
@@ -88,9 +87,7 @@ class NameTest(FastHttpUser):
         logged_in_headers = {"Authorization": f"Bearer {a_token}"}
         print("Logged in")
         with open(
-            Path(__file__).parent.parent
-            / "data"
-            / "BasicChatwithPromptandHistory.json",
+            Path(__file__).parent.parent / "data" / "BasicChatwithPromptandHistory.json",
             "r",
         ) as f:
             json_flow = f.read()
@@ -115,11 +112,7 @@ class NameTest(FastHttpUser):
         )
         print(response.json())
         user_id = next(
-            (
-                user["id"]
-                for user in response.json()["users"]
-                if user["username"] == "superuser"
-            ),
+            (user["id"] for user in response.json()["users"] if user["username"] == "superuser"),
             None,
         )
         # Create api key

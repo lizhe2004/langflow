@@ -1,29 +1,37 @@
-import { ReactNode, forwardRef, useContext, useEffect, useState } from "react";
+import { ReactNode, forwardRef, useEffect, useState } from "react";
 import EditFlowSettings from "../../components/EditFlowSettingsComponent";
 import IconComponent from "../../components/genericIconComponent";
 import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
-import { EXPORT_DIALOG_SUBTITLE } from "../../constants/constants";
-import { TabsContext } from "../../contexts/tabsContext";
-import { removeApiKeys } from "../../utils/reactflowUtils";
+import { API_WARNING_NOTICE_ALERT } from "../../constants/alerts_constants";
+import {
+  ALERT_SAVE_WITH_API,
+  EXPORT_DIALOG_SUBTITLE,
+  SAVE_WITH_API_CHECKBOX,
+} from "../../constants/constants";
+import useAlertStore from "../../stores/alertStore";
+import { useDarkStore } from "../../stores/darkStore";
+import useFlowsManagerStore from "../../stores/flowsManagerStore";
+import { downloadFlow, removeApiKeys } from "../../utils/reactflowUtils";
 import BaseModal from "../baseModal";
 
 const ExportModal = forwardRef(
   (props: { children: ReactNode }, ref): JSX.Element => {
-    const { flows, tabId, downloadFlow } = useContext(TabsContext);
-    const [checked, setChecked] = useState(false);
-    const flow = flows.find((f) => f.id === tabId);
+    const version = useDarkStore((state) => state.version);
+    const setNoticeData = useAlertStore((state) => state.setNoticeData);
+    const [checked, setChecked] = useState(true);
+    const currentFlow = useFlowsManagerStore((state) => state.currentFlow);
     useEffect(() => {
-      setName(flow!.name);
-      setDescription(flow!.description);
-    }, [flow!.name, flow!.description]);
-    const [name, setName] = useState(flow!.name);
-    const [description, setDescription] = useState(flow!.description);
+      setName(currentFlow!.name);
+      setDescription(currentFlow!.description);
+    }, [currentFlow!.name, currentFlow!.description]);
+    const [name, setName] = useState(currentFlow!.name);
+    const [description, setDescription] = useState(currentFlow!.description);
     const [open, setOpen] = useState(false);
 
     return (
-      <BaseModal size="smaller" open={open} setOpen={setOpen}>
-        <BaseModal.Trigger>{props.children}</BaseModal.Trigger>
+      <BaseModal size="smaller-h-full" open={open} setOpen={setOpen}>
+        <BaseModal.Trigger asChild>{props.children}</BaseModal.Trigger>
         <BaseModal.Header description={EXPORT_DIALOG_SUBTITLE}>
           <span className="pr-2">Export</span>
           <IconComponent
@@ -36,36 +44,55 @@ const ExportModal = forwardRef(
           <EditFlowSettings
             name={name}
             description={description}
-            flows={flows}
-            tabId={tabId}
             setName={setName}
             setDescription={setDescription}
           />
           <div className="mt-3 flex items-center space-x-2">
             <Checkbox
               id="terms"
+              checked={checked}
               onCheckedChange={(event: boolean) => {
                 setChecked(event);
               }}
             />
             <label htmlFor="terms" className="export-modal-save-api text-sm ">
-              Save with my API keys
+              {SAVE_WITH_API_CHECKBOX}
             </label>
           </div>
+          <span className=" text-xs text-destructive ">
+            {ALERT_SAVE_WITH_API}
+          </span>
         </BaseModal.Content>
 
         <BaseModal.Footer>
           <Button
             onClick={() => {
-              if (checked)
+              if (checked) {
                 downloadFlow(
-                  flows.find((flow) => flow.id === tabId)!,
+                  {
+                    id: currentFlow!.id,
+                    data: currentFlow!.data!,
+                    description,
+                    name,
+                    last_tested_version: version,
+                    is_component: false,
+                  },
                   name!,
                   description
                 );
-              else
+                setNoticeData({
+                  title: API_WARNING_NOTICE_ALERT,
+                });
+              } else
                 downloadFlow(
-                  removeApiKeys(flows.find((flow) => flow.id === tabId)!),
+                  removeApiKeys({
+                    id: currentFlow!.id,
+                    data: currentFlow!.data!,
+                    description,
+                    name,
+                    last_tested_version: version,
+                    is_component: false,
+                  }),
                   name!,
                   description
                 );

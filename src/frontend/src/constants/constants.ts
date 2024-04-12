@@ -25,10 +25,18 @@ export const INVALID_CHARACTERS = [
 
 /**
  * regex to highlight the variables in the text
- * @constant
+ * @constant regexHighlight
+ * @type {RegExp}
+ * @default
+ * @example
+ * {{variable}} or {variable}
+ * @returns {RegExp}
+ * @description
+ * This regex is used to highlight the variables in the text.
+ * It matches the variables in the text that are between {{}} or {}.
  */
 
-export const regexHighlight = /\{([^}]+)\}/g;
+export const regexHighlight = /\{\{(.*?)\}\}|\{([^{}]+)\}/g;
 export const specialCharsRegex = /[!@#$%^&*()\-_=+[\]{}|;:'",.<>/?\\`´]/;
 
 export const programmingLanguages: languageMap = {
@@ -517,19 +525,30 @@ export const ADMIN_HEADER_TITLE = "Admin Page";
 export const ADMIN_HEADER_DESCRIPTION =
   "Navigate through this section to efficiently oversee all application users. From here, you can seamlessly manage user accounts.";
 
+export const BASE_URL_API = "/api/v1/";
+
+export const BACKEND_URL = "http://localhost:7860/";
+
 /**
  * URLs excluded from error retries.
  * @constant
  *
  */
 export const URL_EXCLUDED_FROM_ERROR_RETRIES = [
-  "/api/v1/validate/code",
-  "/api/v1/custom_component",
-  "/api/v1/validate/prompt",
-  "http://localhost:7860/login",
+  `${BASE_URL_API}validate/code`,
+  `${BASE_URL_API}custom_component`,
+  `${BASE_URL_API}validate/prompt`,
+  `http://localhost:7860/login`,
+  `${BASE_URL_API}api_key/store`,
 ];
 
-export const skipNodeUpdate = ["CustomComponent"];
+export const skipNodeUpdate = [
+  "CustomComponent",
+  "PromptTemplate",
+  "ChatMessagePromptTemplate",
+  "SystemMessagePromptTemplate",
+  "HumanMessagePromptTemplate",
+];
 
 export const CONTROL_INPUT_STATE = {
   password: "",
@@ -553,10 +572,6 @@ export const CONTROL_NEW_USER = {
   password: "",
   is_active: false,
   is_superuser: false,
-};
-
-export const CONTROL_NEW_API_KEY = {
-  apikeyname: "",
 };
 
 export const tabsCode = [];
@@ -643,8 +658,6 @@ export const FETCH_ERROR_MESSAGE = "Couldn't establish a connection.";
 export const FETCH_ERROR_DESCRIPION =
   "Check if everything is working properly and try again.";
 
-export const BASE_URL_API = "/api/v1/";
-
 export const SIGN_UP_SUCCESS = "Account created! Await admin activation. ";
 
 export const API_PAGE_PARAGRAPH_1 =
@@ -660,3 +673,84 @@ export const LAST_USED_SPAN_1 = "The last time this key was used.";
 
 export const LAST_USED_SPAN_2 =
   "Accurate to within the hour from the most recent usage.";
+
+export const LANGFLOW_SUPPORTED_TYPES = new Set([
+  "str",
+  "bool",
+  "float",
+  "code",
+  "prompt",
+  "file",
+  "int",
+  "dict",
+  "NestedDict",
+]);
+
+export const priorityFields = new Set(["code", "template"]);
+
+export const INPUT_TYPES = new Set(["ChatInput", "TextInput"]);
+export const OUTPUT_TYPES = new Set(["ChatOutput", "TextOutput"]);
+
+export const CHAT_FIRST_INITIAL_TEXT =
+  "Start a conversation and click the agent's thoughts";
+
+export const CHAT_SECOND_INITIAL_TEXT = "to inspect the chaining process.";
+
+export const ZERO_NOTIFICATIONS = "No new notifications";
+
+export const SUCCESS_BUILD = "Built sucessfully ✨";
+
+export const ALERT_SAVE_WITH_API =
+  "Caution: Uncheck this box only removes API keys from fields specifically designated for API keys.";
+
+export const SAVE_WITH_API_CHECKBOX = "Save with my API keys";
+export const EDIT_TEXT_MODAL_TITLE = "Edit Text";
+export const EDIT_TEXT_PLACEHOLDER = "Type message here.";
+export const INPUT_HANDLER_HOVER = "Avaliable input components:";
+export const OUTPUT_HANDLER_HOVER = "Avaliable output components:";
+export const TEXT_INPUT_MODAL_TITLE = "Text Inputs";
+export const OUTPUTS_MODAL_TITLE = "Text Outputs";
+export const LANGFLOW_CHAT_TITLE = "Langflow Chat";
+export const CHAT_INPUT_PLACEHOLDER =
+  "No chat input variables found. Click to run your flow.";
+export const CHAT_INPUT_PLACEHOLDER_SEND = "Send a message...";
+export const EDIT_CODE_TITLE = "Edit Code";
+export const MY_COLLECTION_DESC =
+  "Manage your personal projects. Download and upload entire collections.";
+export const STORE_DESC = "Explore community-shared flows and components.";
+export const STORE_TITLE = "Langflow Store";
+export const NO_API_KEY = "You don't have an API key. ";
+export const INSERT_API_KEY = "Insert your Langflow API key.";
+export const INVALID_API_KEY = "Your API key is not valid. ";
+export const CREATE_API_KEY = `Don’t have an API key? Sign up at`;
+export const STATUS_BUILD = "Build to validate status.";
+export const STATUS_BUILDING = "Building...";
+export const SAVED_HOVER = "Last saved at ";
+export const RUN_TIMESTAMP_PREFIX = "Last Run: ";
+export const STARTER_FOLDER_NAME = "Starter Projects";
+export const PRIORITY_SIDEBAR_ORDER = [
+  "saved_components",
+  "inputs",
+  "outputs",
+  "prompts",
+  "data",
+  "prompt",
+  "models",
+  "helpers",
+  "vectorstores",
+  "vectorsearch",
+  "embeddings",
+];
+export const NATIVE_CATEGORIES = [
+  "inputs",
+  "outputs",
+  "prompts",
+  "data",
+  "prompt",
+  "models",
+  "helpers",
+  "experimental",
+  "agents",
+];
+
+export const SAVE_DEBOUNCE_TIME = 300;

@@ -13,6 +13,8 @@ export default function DropdownButton({
   firstButtonName,
   onFirstBtnClick,
   options,
+  plusButton = false,
+  dropdownOptions = true,
 }: dropdownButtonPropsType): JSX.Element {
   const [showOptions, setShowOptions] = useState<boolean>(false);
 
@@ -21,29 +23,37 @@ export default function DropdownButton({
       <DropdownMenu open={showOptions}>
         <DropdownMenuTrigger asChild>
           <Button
+            id="new-project-btn"
             variant="primary"
-            className="relative pr-10"
+            className={
+              "relative" + dropdownOptions ? " pl-[12px]" : " pl-[12px] pr-10"
+            }
             onClick={(event) => {
               event.stopPropagation();
               event.preventDefault();
               onFirstBtnClick();
             }}
           >
+            {plusButton && (
+              <IconComponent name="Plus" className="main-page-nav-button" />
+            )}
             {firstButtonName}
-            <div
-              className="absolute right-2 items-center text-muted-foreground"
-              onClick={(event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                setShowOptions(!showOptions);
-              }}
-            >
-              {!showOptions ? (
-                <IconComponent name="ChevronDown" />
-              ) : (
-                <IconComponent name="ChevronUp" />
-              )}
-            </div>
+            {dropdownOptions && (
+              <div
+                className="absolute right-2 items-center text-muted-foreground"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  setShowOptions(!showOptions);
+                }}
+              >
+                {!showOptions ? (
+                  <IconComponent name="ChevronDown" />
+                ) : (
+                  <IconComponent name="ChevronUp" />
+                )}
+              </div>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent

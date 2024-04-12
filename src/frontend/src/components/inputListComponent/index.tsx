@@ -11,9 +11,10 @@ export default function InputListComponent({
   onChange,
   disabled,
   editNode = false,
+  componentName,
 }: InputListComponentType): JSX.Element {
   useEffect(() => {
-    if (disabled) {
+    if (disabled && value.length > 0 && value[0] !== "") {
       onChange([""]);
     }
   }, [disabled]);
@@ -22,6 +23,8 @@ export default function InputListComponent({
   if (typeof value === "string") {
     value = [value];
   }
+
+  if (!value.length) value = [""];
 
   return (
     <div
@@ -44,12 +47,10 @@ export default function InputListComponent({
                 newInputList[idx] = event.target.value;
                 onChange(newInputList);
               }}
-              onKeyDown={(e) => {
-                if (e.ctrlKey && e.key === "Backspace") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
+              data-testid={
+                `input-list-input${editNode ? "-edit" : ""}_${componentName}-` +
+                idx
+              }
             />
             {idx === value.length - 1 ? (
               <button
@@ -58,6 +59,11 @@ export default function InputListComponent({
                   newInputList.push("");
                   onChange(newInputList);
                 }}
+                data-testid={
+                  `input-list-plus-btn${
+                    editNode ? "-edit" : ""
+                  }_${componentName}-` + idx
+                }
               >
                 <IconComponent
                   name="Plus"
@@ -66,6 +72,11 @@ export default function InputListComponent({
               </button>
             ) : (
               <button
+                data-testid={
+                  `input-list-minus-btn${
+                    editNode ? "-edit" : ""
+                  }_${componentName}-` + idx
+                }
                 onClick={() => {
                   let newInputList = _.cloneDeep(value);
                   newInputList.splice(idx, 1);

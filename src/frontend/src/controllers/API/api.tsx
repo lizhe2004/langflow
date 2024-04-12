@@ -1,10 +1,11 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
 import { useContext, useEffect } from "react";
 import { Cookies } from "react-cookie";
-import { useNavigate } from "react-router-dom";
 import { renewAccessToken } from ".";
-import { alertContext } from "../../contexts/alertContext";
+import { BuildStatus } from "../../constants/enums";
 import { AuthContext } from "../../contexts/authContext";
+import useAlertStore from "../../stores/alertStore";
+import useFlowStore from "../../stores/flowStore";
 
 // Create a new Axios instance
 const api: AxiosInstance = axios.create({
@@ -12,67 +13,42 @@ const api: AxiosInstance = axios.create({
 });
 
 function ApiInterceptor() {
-  const { setErrorData } = useContext(alertContext);
-  let { accessToken, login, logout, authenticationErrorCount } =
+  const setErrorData = useAlertStore((state) => state.setErrorData);
+  let { accessToken, login, logout, authenticationErrorCount, autoLogin } =
     useContext(AuthContext);
-  const navigate = useNavigate();
   const cookies = new Cookies();
 
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          const refreshToken = cookies.get("refresh_tkn_lflw");
-          if (refreshToken && refreshToken !== "auto") {
-            authenticationErrorCount = authenticationErrorCount + 1;
-            if (authenticationErrorCount > 3) {
-              authenticationErrorCount = 0;
-              logout();
-              navigate("/login");
+        if (error.response?.status === 403 || error.response?.status === 401) {
+          if (!autoLogin) {
+            const stillRefresh = checkErrorCount();
+            if (!stillRefresh) {
+              return Promise.reject(error);
+            }
+            const acceptedRequest = await tryToRenewAccessToken(error);
+
+            const accessToken = cookies.get("access_token_lf");
+
+            if (!accessToken && error?.config?.url?.includes("login")) {
+              return Promise.reject(error);
             }
 
-            const res = await renewAccessToken(refreshToken);
-            if (res?.data?.access_token && res?.data?.refresh_token) {
-              login(res?.data?.access_token, res?.data?.refresh_token);
-            }
-
-            try {
-              if (error?.config?.headers) {
-                delete error.config.headers["Authorization"];
-                error.config.headers["Authorization"] = `Bearer ${cookies.get(
-                  "access_tkn_lflw"
-                )}`;
-                const response = await axios.request(error.config);
-                return response;
-              }
-            } catch (error) {
-              if (axios.isAxiosError(error) && error.response?.status === 401) {
-                logout();
-                navigate("/login");
-              }
-            }
+            return acceptedRequest;
           }
-
-          if (!refreshToken && error?.config?.url?.includes("login")) {
-            return Promise.reject(error);
-          } else {
-            logout();
-            navigate("/login");
-          }
-        } else {
-          // if (URL_EXCLUDED_FROM_ERROR_RETRIES.includes(error.config?.url)) {
-          return Promise.reject(error);
-          // }
         }
+        await clearBuildVerticesState(error);
+        return Promise.reject(error);
       }
     );
 
     const isAuthorizedURL = (url) => {
       const authorizedDomains = [
-        "https://raw.githubusercontent.com/logspace-ai/langflow_examples/main/examples",
-        "https://api.github.com/repos/logspace-ai/langflow_examples/contents/examples",
-        "https://api.github.com/repos/logspace-ai/langflow",
+        "https://raw.githubusercontent.com/langflow-ai/langflow_examples/main/examples",
+        "https://api.github.com/repos/langflow-ai/langflow_examples/contents/examples",
+        "https://api.github.com/repos/langflow-ai/langflow",
         "auto_login",
       ];
 
@@ -98,6 +74,7 @@ function ApiInterceptor() {
     // Request interceptor to add access token to every request
     const requestInterceptor = api.interceptors.request.use(
       (config) => {
+        const accessToken = cookies.get("access_token_lf");
         if (accessToken && !isAuthorizedURL(config?.url)) {
           config.headers["Authorization"] = `Bearer ${accessToken}`;
         }
@@ -115,6 +92,50 @@ function ApiInterceptor() {
       api.interceptors.request.eject(requestInterceptor);
     };
   }, [accessToken, setErrorData]);
+
+  function checkErrorCount() {
+    authenticationErrorCount = authenticationErrorCount + 1;
+
+    if (authenticationErrorCount > 3) {
+      authenticationErrorCount = 0;
+      logout();
+      return false;
+    }
+
+    return true;
+  }
+
+  async function tryToRenewAccessToken(error: AxiosError) {
+    try {
+      if (window.location.pathname.includes("/login")) return;
+      const res = await renewAccessToken();
+      if (res?.data?.access_token && res?.data?.refresh_token) {
+        login(res?.data?.access_token);
+      }
+      if (error?.config?.headers) {
+        delete error.config.headers["Authorization"];
+        error.config.headers["Authorization"] = `Bearer ${cookies.get(
+          "access_token_lf"
+        )}`;
+        const response = await axios.request(error.config);
+        return response;
+      }
+    } catch (error) {
+      clearBuildVerticesState(error);
+      logout();
+      return Promise.reject("Authentication error");
+    }
+  }
+
+  async function clearBuildVerticesState(error) {
+    if (error?.response?.status === 500) {
+      const vertices = useFlowStore.getState().verticesBuild;
+      useFlowStore
+        .getState()
+        .updateBuildStatus(vertices?.verticesIds ?? [], BuildStatus.BUILT);
+      useFlowStore.getState().setIsBuilding(false);
+    }
+  }
 
   return null;
 }

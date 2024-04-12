@@ -6,18 +6,26 @@ import GradientChooserComponent from "../../components/gradientChooserComponent"
 import Header from "../../components/headerComponent";
 import InputComponent from "../../components/inputComponent";
 import { Button } from "../../components/ui/button";
+import {
+  EDIT_PASSWORD_ALERT_LIST,
+  EDIT_PASSWORD_ERROR_ALERT,
+  SAVE_ERROR_ALERT,
+  SAVE_SUCCESS_ALERT,
+} from "../../constants/alerts_constants";
 import { CONTROL_PATCH_USER_STATE } from "../../constants/constants";
-import { alertContext } from "../../contexts/alertContext";
 import { AuthContext } from "../../contexts/authContext";
-import { TabsContext } from "../../contexts/tabsContext";
 import { resetPassword, updateUser } from "../../controllers/API";
+import useAlertStore from "../../stores/alertStore";
+import useFlowsManagerStore from "../../stores/flowsManagerStore";
 import {
   inputHandlerEventType,
   patchUserInputStateType,
 } from "../../types/components";
 import { gradients } from "../../utils/styleUtils";
 export default function ProfileSettingsPage(): JSX.Element {
-  const { setTabId } = useContext(TabsContext);
+  const setCurrentFlowId = useFlowsManagerStore(
+    (state) => state.setCurrentFlowId
+  );
 
   const [inputState, setInputState] = useState<patchUserInputStateType>(
     CONTROL_PATCH_USER_STATE
@@ -25,17 +33,18 @@ export default function ProfileSettingsPage(): JSX.Element {
 
   // set null id
   useEffect(() => {
-    setTabId("");
+    setCurrentFlowId("");
   }, []);
-  const { setErrorData, setSuccessData } = useContext(alertContext);
+  const setSuccessData = useAlertStore((state) => state.setSuccessData);
+  const setErrorData = useAlertStore((state) => state.setErrorData);
   const { userData, setUserData } = useContext(AuthContext);
   const { password, cnfPassword, gradient } = inputState;
 
   async function handlePatchUser() {
     if (password !== cnfPassword) {
       setErrorData({
-        title: "Error changing password",
-        list: ["Passwords do not match"],
+        title: EDIT_PASSWORD_ERROR_ALERT,
+        list: [EDIT_PASSWORD_ALERT_LIST],
       });
       return;
     }
@@ -51,10 +60,10 @@ export default function ProfileSettingsPage(): JSX.Element {
       }
       handleInput({ target: { name: "password", value: "" } });
       handleInput({ target: { name: "cnfPassword", value: "" } });
-      setSuccessData({ title: "Changes saved successfully!" });
+      setSuccessData({ title: SAVE_SUCCESS_ALERT });
     } catch (error) {
       setErrorData({
-        title: "Error saving changes",
+        title: SAVE_ERROR_ALERT,
         list: [(error as any).response.data.detail],
       });
     }
@@ -97,6 +106,7 @@ export default function ProfileSettingsPage(): JSX.Element {
                     Password{" "}
                   </Form.Label>
                   <InputComponent
+                    id="pasword"
                     onChange={(value) => {
                       handleInput({ target: { name: "password", value } });
                     }}
@@ -118,6 +128,7 @@ export default function ProfileSettingsPage(): JSX.Element {
                   </Form.Label>
 
                   <InputComponent
+                    id="cnfPassword"
                     onChange={(value) => {
                       handleInput({ target: { name: "cnfPassword", value } });
                     }}
@@ -143,9 +154,9 @@ export default function ProfileSettingsPage(): JSX.Element {
                 <GradientChooserComponent
                   value={
                     gradient == ""
-                      ? userData!.profile_image ??
+                      ? userData?.profile_image ??
                         gradients[
-                          parseInt(userData!.id ?? "", 30) % gradients.length
+                          parseInt(userData?.id ?? "", 30) % gradients.length
                         ]
                       : gradient
                   }

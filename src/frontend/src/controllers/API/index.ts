@@ -4,14 +4,20 @@ import { BASE_URL_API } from "../../constants/constants";
 import { api } from "../../controllers/API/api";
 import {
   APIObjectType,
+  APITemplateType,
+  Component,
   LoginType,
   Users,
+  VertexBuildTypeAPI,
+  VerticesOrderTypeAPI,
   changeUser,
   resetPasswordType,
   sendAllProps,
 } from "../../types/api/index";
 import { UserInputType } from "../../types/components";
 import { FlowStyleType, FlowType } from "../../types/flow";
+import { StoreComponentResponse } from "../../types/store";
+import { FlowPoolType } from "../../types/zustand/flow";
 import {
   APIClassType,
   BuildStatusTypeAPI,
@@ -70,10 +76,10 @@ export async function postValidatePrompt(
   template: string,
   frontend_node: APIClassType
 ): Promise<AxiosResponse<PromptTypeAPI>> {
-  return await api.post(`${BASE_URL_API}validate/prompt`, {
-    name: name,
-    template: template,
-    frontend_node: frontend_node,
+  return api.post(`${BASE_URL_API}validate/prompt`, {
+    name,
+    template,
+    frontend_node,
   });
 }
 
@@ -84,7 +90,7 @@ export async function postValidatePrompt(
  */
 export async function getExamples(): Promise<FlowType[]> {
   const url =
-    "https://api.github.com/repos/logspace-ai/langflow_examples/contents/examples?ref=main";
+    "https://api.github.com/repos/langflow-ai/langflow_examples/contents/examples?ref=main";
   const response = await api.get(url);
 
   const jsonFiles = response.data.filter((file: any) => {
@@ -112,12 +118,14 @@ export async function saveFlowToDatabase(newFlow: {
   data: ReactFlowJsonObject | null;
   description: string;
   style?: FlowStyleType;
+  is_component?: boolean;
 }): Promise<FlowType> {
   try {
     const response = await api.post(`${BASE_URL_API}flows/`, {
       name: newFlow.name,
       data: newFlow.data,
       description: newFlow.description,
+      is_component: newFlow.is_component,
     });
 
     if (response.status !== 201) {
@@ -146,8 +154,8 @@ export async function updateFlowInDatabase(
       description: updatedFlow.description,
     });
 
-    if (response.status !== 200) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (response?.status !== 200) {
+      throw new Error(`HTTP error! status: ${response?.status}`);
     }
     return response.data;
   } catch (error) {
@@ -293,8 +301,8 @@ export async function saveFlowStyleToDatabase(flowStyle: FlowStyleType) {
  * @returns {Promise<AxiosResponse<any>>} A promise that resolves to an AxiosResponse containing the version information.
  */
 export async function getVersion() {
-  const respnose = await api.get(`${BASE_URL_API}version`);
-  return respnose.data;
+  const response = await api.get(`${BASE_URL_API}version`);
+  return response.data;
 }
 
 /**
@@ -346,14 +354,32 @@ export async function uploadFile(
 ): Promise<AxiosResponse<UploadFileTypeAPI>> {
   const formData = new FormData();
   formData.append("file", file);
-  return await api.post(`${BASE_URL_API}upload/${id}`, formData);
+  return await api.post(`${BASE_URL_API}files/upload/${id}`, formData);
 }
 
 export async function postCustomComponent(
   code: string,
   apiClass: APIClassType
 ): Promise<AxiosResponse<APIClassType>> {
-  return await api.post(`${BASE_URL_API}custom_component`, { code });
+  // let template = apiClass.template;
+  return await api.post(`${BASE_URL_API}custom_component`, {
+    code,
+    frontend_node: apiClass,
+  });
+}
+
+export async function postCustomComponentUpdate(
+  code: string,
+  template: APITemplateType,
+  field: string,
+  field_value: any
+): Promise<AxiosResponse<APIClassType>> {
+  return await api.post(`${BASE_URL_API}custom_component/update`, {
+    code,
+    template,
+    field,
+    field_value,
+  });
 }
 
 export async function onLogin(user: LoginType) {
@@ -393,13 +419,10 @@ export async function autoLogin() {
   }
 }
 
-export async function renewAccessToken(token: string) {
+export async function renewAccessToken() {
   try {
-    if (token) {
-      return await api.post(`${BASE_URL_API}refresh?token=${token}`);
-    }
+    return await api.post(`${BASE_URL_API}refresh`);
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
 }
@@ -412,7 +435,6 @@ export async function getLoggedUser(): Promise<Users | null> {
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
   return null;
@@ -426,7 +448,6 @@ export async function addUser(user: UserInputType): Promise<Array<Users>> {
     }
     return res.data;
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
 }
@@ -443,7 +464,6 @@ export async function getUsersPage(
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
   return [];
@@ -456,7 +476,6 @@ export async function deleteUser(user_id: string) {
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
 }
@@ -468,7 +487,6 @@ export async function updateUser(user_id: string, user: changeUser) {
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
 }
@@ -483,7 +501,6 @@ export async function resetPassword(user_id: string, user: resetPasswordType) {
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
 }
@@ -495,7 +512,6 @@ export async function getApiKey() {
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
 }
@@ -507,7 +523,6 @@ export async function createApiKey(name: string) {
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
 }
@@ -519,7 +534,426 @@ export async function deleteApiKey(api_key: string) {
       return res.data;
     }
   } catch (error) {
-    console.log("Error:", error);
     throw error;
   }
+}
+
+export async function addApiKeyStore(key: string) {
+  try {
+    const res = await api.post(`${BASE_URL_API}api_key/store`, {
+      api_key: key,
+    });
+    if (res.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
+ * Saves a new flow to the database.
+ *
+ * @param {FlowType} newFlow - The flow data to save.
+ * @returns {Promise<any>} The saved flow data.
+ * @throws Will throw an error if saving fails.
+ */
+export async function saveFlowStore(
+  newFlow: {
+    name?: string;
+    data: ReactFlowJsonObject | null;
+    description?: string;
+    style?: FlowStyleType;
+    is_component?: boolean;
+    parent?: string;
+    last_tested_version?: string;
+  },
+  tags: string[],
+  publicFlow = false
+): Promise<FlowType> {
+  try {
+    const response = await api.post(`${BASE_URL_API}store/components/`, {
+      name: newFlow.name,
+      data: newFlow.data,
+      description: newFlow.description,
+      is_component: newFlow.is_component,
+      parent: newFlow.parent,
+      tags: tags,
+      private: !publicFlow,
+      status: publicFlow ? "Public" : "Private",
+      last_tested_version: newFlow.last_tested_version,
+    });
+
+    if (response.status !== 201) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches the flows from the store.
+ * @returns {Promise<>} A promise that resolves to an AxiosResponse containing the build status.
+ *
+ */
+export async function getFlowsStore(): Promise<AxiosResponse<FlowType[]>> {
+  return await api.get(`${BASE_URL_API}store/`);
+}
+
+export async function getStoreComponents({
+  component_id = null,
+  page = 1,
+  limit = 9999999,
+  is_component = null,
+  sort = "-count(liked_by)",
+  tags = [] || null,
+  liked = null,
+  isPrivate = null,
+  search = null,
+  filterByUser = null,
+  fields = null,
+}: {
+  component_id?: string | null;
+  page?: number;
+  limit?: number;
+  is_component?: boolean | null;
+  sort?: string;
+  tags?: string[] | null;
+  liked?: boolean | null;
+  isPrivate?: boolean | null;
+  search?: string | null;
+  filterByUser?: boolean | null;
+  fields?: Array<string> | null;
+}): Promise<StoreComponentResponse | undefined> {
+  try {
+    let url = `${BASE_URL_API}store/components/`;
+    const queryParams: any = [];
+    if (component_id !== undefined && component_id !== null) {
+      queryParams.push(`component_id=${component_id}`);
+    }
+    if (search !== undefined && search !== null) {
+      queryParams.push(`search=${search}`);
+    }
+    if (isPrivate !== undefined && isPrivate !== null) {
+      queryParams.push(`private=${isPrivate}`);
+    }
+    if (tags !== undefined && tags !== null && tags.length > 0) {
+      queryParams.push(`tags=${tags.join(encodeURIComponent(","))}`);
+    }
+    if (fields !== undefined && fields !== null && fields.length > 0) {
+      queryParams.push(`fields=${fields.join(encodeURIComponent(","))}`);
+    }
+
+    if (sort !== undefined && sort !== null) {
+      queryParams.push(`sort=${sort}`);
+    } else {
+      queryParams.push(`sort=-count(liked_by)`); // default sort
+    }
+
+    if (liked !== undefined && liked !== null) {
+      queryParams.push(`liked=${liked}`);
+    }
+
+    if (filterByUser !== undefined && filterByUser !== null) {
+      queryParams.push(`filter_by_user=${filterByUser}`);
+    }
+
+    if (page !== undefined) {
+      queryParams.push(`page=${page ?? 1}`);
+    }
+    if (limit !== undefined) {
+      queryParams.push(`limit=${limit ?? 9999999}`);
+    }
+    if (is_component !== null && is_component !== undefined) {
+      queryParams.push(`is_component=${is_component}`);
+    }
+    if (queryParams.length > 0) {
+      url += `?${queryParams.join("&")}`;
+    }
+
+    const res = await api.get(url);
+
+    if (res.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function postStoreComponents(component: Component) {
+  try {
+    const res = await api.post(`${BASE_URL_API}store/components/`, component);
+    if (res.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getComponent(component_id: string) {
+  try {
+    const res = await api.get(
+      `${BASE_URL_API}store/components/${component_id}`
+    );
+    if (res.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function searchComponent(
+  query: string | null,
+  page?: number | null,
+  limit?: number | null,
+  status?: string | null,
+  tags?: string[]
+): Promise<StoreComponentResponse | undefined> {
+  try {
+    let url = `${BASE_URL_API}store/components/`;
+    const queryParams: any = [];
+    if (query !== undefined && query !== null) {
+      queryParams.push(`search=${query}`);
+    }
+    if (page !== undefined && page !== null) {
+      queryParams.push(`page=${page}`);
+    }
+    if (limit !== undefined && limit !== null) {
+      queryParams.push(`limit=${limit}`);
+    }
+    if (status !== undefined && status !== null) {
+      queryParams.push(`status=${status}`);
+    }
+    if (tags !== undefined && tags !== null) {
+      queryParams.push(`tags=${tags}`);
+    }
+    if (queryParams.length > 0) {
+      url += `?${queryParams.join("&")}`;
+    }
+
+    const res = await api.get(url);
+
+    if (res.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function checkHasApiKey() {
+  try {
+    const res = await api.get(`${BASE_URL_API}store/check/api_key`);
+    if (res?.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function checkHasStore() {
+  try {
+    const res = await api.get(`${BASE_URL_API}store/check/`);
+    if (res?.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getCountComponents(is_component?: boolean | null) {
+  try {
+    let url = `${BASE_URL_API}store/components/count`;
+    const queryParams: any = [];
+    if (is_component !== undefined) {
+      queryParams.push(`is_component=${is_component}`);
+    }
+
+    if (queryParams.length > 0) {
+      url += `?${queryParams.join("&")}`;
+    }
+
+    const res = await api.get(url);
+
+    if (res.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function getStoreTags() {
+  try {
+    const res = await api.get(`${BASE_URL_API}store/tags`);
+    if (res.status === 200) {
+      return res.data;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+export const postLikeComponent = (componentId: string) => {
+  return api.post(`${BASE_URL_API}store/users/likes/${componentId}`);
+};
+
+/**
+ * Updates an existing flow in the Store.
+ *
+ * @param {FlowType} updatedFlow - The updated flow data.
+ * @returns {Promise<any>} The updated flow data.
+ * @throws Will throw an error if the update fails.
+ */
+export async function updateFlowStore(
+  newFlow: {
+    name?: string;
+    data: ReactFlowJsonObject | null;
+    description?: string;
+    style?: FlowStyleType;
+    is_component?: boolean;
+    parent?: string;
+    last_tested_version?: string;
+  },
+  tags: string[],
+  publicFlow = false,
+  id: string
+): Promise<FlowType> {
+  try {
+    const response = await api.patch(`${BASE_URL_API}store/components/${id}`, {
+      name: newFlow.name,
+      data: newFlow.data,
+      description: newFlow.description,
+      is_component: newFlow.is_component,
+      parent: newFlow.parent,
+      tags: tags,
+      private: !publicFlow,
+      last_tested_version: newFlow.last_tested_version,
+    });
+
+    if (response.status !== 201) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+}
+
+export async function requestLogout() {
+  try {
+    const response = await api.post(`${BASE_URL_API}logout`);
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+}
+
+export async function getGlobalVariables(): Promise<{
+  [key: string]: { id: string; type: string };
+}> {
+  const globalVariables = {};
+  (await api.get(`${BASE_URL_API}variables/`)).data.forEach((element) => {
+    globalVariables[element.name] = {
+      id: element.id,
+      type: element.type,
+    };
+  });
+  return globalVariables;
+}
+
+export async function registerGlobalVariable({
+  name,
+  value,
+  type,
+}: {
+  name: string;
+  value: string;
+  type?: string;
+}): Promise<AxiosResponse<{ name: string; id: string; type: string }>> {
+  return await api.post(`${BASE_URL_API}variables/`, {
+    name,
+    value,
+    type,
+  });
+}
+
+export async function deleteGlobalVariable(id: string) {
+  api.delete(`${BASE_URL_API}variables/${id}`);
+}
+
+export async function updateGlobalVariable(
+  name: string,
+  value: string,
+  id: string
+) {
+  api.patch(`${BASE_URL_API}variables/${id}`, {
+    name,
+    value,
+  });
+}
+
+export async function getVerticesOrder(
+  flowId: string,
+  startNodeId?: string | null,
+  stopNodeId?: string | null
+): Promise<AxiosResponse<VerticesOrderTypeAPI>> {
+  // nodeId is optional and is a query parameter
+  // if nodeId is not provided, the API will return all vertices
+  const config = {};
+  if (stopNodeId) {
+    config["params"] = { stop_component_id: stopNodeId };
+  } else if (startNodeId) {
+    config["params"] = { start_component_id: startNodeId };
+  }
+  return await api.get(`${BASE_URL_API}build/${flowId}/vertices`, config);
+}
+
+export async function postBuildVertex(
+  flowId: string,
+  vertexId: string,
+  input_value: string
+): Promise<AxiosResponse<VertexBuildTypeAPI>> {
+  // input_value is optional and is a query parameter
+  return await api.post(
+    `${BASE_URL_API}build/${flowId}/vertices/${vertexId}`,
+    input_value ? { inputs: { input_value: input_value } } : undefined
+  );
+}
+
+export async function downloadImage({ flowId, fileName }): Promise<any> {
+  return await api.get(`${BASE_URL_API}files/images/${flowId}/${fileName}`);
+}
+
+export async function getFlowPool({
+  flowId,
+  nodeId,
+}: {
+  flowId: string;
+  nodeId?: string;
+}): Promise<AxiosResponse<{ vertex_builds: FlowPoolType }>> {
+  const config = {};
+  config["params"] = { flow_id: flowId };
+  if (nodeId) {
+    config["params"] = { nodeId };
+  }
+  return await api.get(`${BASE_URL_API}monitor/builds`, config);
+}
+
+export async function deleteFlowPool(
+  flowId: string
+): Promise<AxiosResponse<any>> {
+  const config = {};
+  config["params"] = { flow_id: flowId };
+  return await api.delete(`${BASE_URL_API}monitor/builds`, config);
 }

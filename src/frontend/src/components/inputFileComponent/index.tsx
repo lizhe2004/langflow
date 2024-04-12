@@ -1,7 +1,12 @@
-import { useContext, useEffect, useState } from "react";
-import { alertContext } from "../../contexts/alertContext";
-import { TabsContext } from "../../contexts/tabsContext";
+import { useEffect, useState } from "react";
+import {
+  CONSOLE_ERROR_MSG,
+  CONSOLE_SUCCESS_MSG,
+  INVALID_FILE_ALERT,
+} from "../../constants/alerts_constants";
 import { uploadFile } from "../../controllers/API";
+import useAlertStore from "../../stores/alertStore";
+import useFlowsManagerStore from "../../stores/flowsManagerStore";
 import { FileComponentType } from "../../types/components";
 import IconComponent from "../genericIconComponent";
 
@@ -9,19 +14,18 @@ export default function InputFileComponent({
   value,
   onChange,
   disabled,
-  suffixes,
   fileTypes,
   onFileChange,
   editNode = false,
 }: FileComponentType): JSX.Element {
+  const currentFlowId = useFlowsManagerStore((state) => state.currentFlowId);
   const [myValue, setMyValue] = useState(value);
   const [loading, setLoading] = useState(false);
-  const { setErrorData } = useContext(alertContext);
-  const { tabId } = useContext(TabsContext);
+  const setErrorData = useAlertStore((state) => state.setErrorData);
 
   // Clear component state
   useEffect(() => {
-    if (disabled) {
+    if (disabled && value !== "") {
       setMyValue("");
       onChange("");
       onFileChange("");
@@ -29,8 +33,9 @@ export default function InputFileComponent({
   }, [disabled, onChange]);
 
   function checkFileType(fileName: string): boolean {
-    for (let index = 0; index < suffixes.length; index++) {
-      if (fileName.endsWith(suffixes[index])) {
+    if (fileTypes === undefined) return true;
+    for (let index = 0; index < fileTypes.length; index++) {
+      if (fileName.endsWith(fileTypes[index])) {
         return true;
       }
     }
@@ -45,7 +50,7 @@ export default function InputFileComponent({
     // Create a file input element
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = suffixes.join(",");
+    input.accept = fileTypes?.join(",");
     input.style.display = "none"; // Hidden from view
     input.multiple = false; // Allow only one file selection
 
@@ -58,10 +63,10 @@ export default function InputFileComponent({
       // Check if the file type is correct
       if (file && checkFileType(file.name)) {
         // Upload the file
-        uploadFile(file, tabId)
+        uploadFile(file, currentFlowId)
           .then((res) => res.data)
           .then((data) => {
-            console.log("File uploaded successfully");
+            console.log(CONSOLE_SUCCESS_MSG);
             // Get the file name from the response
             const { file_path } = data;
             console.log("File name:", file_path);
@@ -75,14 +80,13 @@ export default function InputFileComponent({
             setLoading(false);
           })
           .catch(() => {
-            console.error("Error occurred while uploading file");
+            console.error(CONSOLE_ERROR_MSG);
             setLoading(false);
           });
       } else {
         // Show an error if the file type is not allowed
         setErrorData({
-          title:
-            "Please select a valid file. Only these file types are allowed:",
+          title: INVALID_FILE_ALERT,
           list: fileTypes,
         });
         setLoading(false);

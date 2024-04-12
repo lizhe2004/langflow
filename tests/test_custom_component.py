@@ -1,28 +1,23 @@
 import ast
-import pytest
 import types
 from uuid import uuid4
 
+import pytest
+from langchain_core.documents import Document
 
-from fastapi import HTTPException
-from langflow.services.database.models.flow import Flow, FlowCreate
 from langflow.interface.custom.base import CustomComponent
-from langflow.interface.custom.component import (
-    Component,
-    ComponentCodeNullError,
-    ComponentFunctionEntrypointNameNullError,
-)
-from langflow.interface.custom.code_parser import CodeParser, CodeSyntaxError
-
+from langflow.interface.custom.code_parser.code_parser import CodeParser, CodeSyntaxError
+from langflow.interface.custom.custom_component.component import Component, ComponentCodeNullError
+from langflow.services.database.models.flow import Flow, FlowCreate
 
 code_default = """
-from langflow import Prompt
+from langflow.field_typing import Prompt
 from langflow.interface.custom.custom_component import CustomComponent
 
-from langchain.llms.base import BaseLLM
+from langflow.field_typing import BaseLanguageModel
 from langchain.chains import LLMChain
-from langchain import PromptTemplate
-from langchain.schema import Document
+from langchain.prompts import PromptTemplate
+from langchain_core.documents import Document
 
 import requests
 
@@ -31,7 +26,7 @@ class YourComponent(CustomComponent):
     description: str = "Your description"
     field_config = { "url": { "multiline": True, "required": True } }
 
-    def build(self, url: str, llm: BaseLLM, template: Prompt) -> Document:
+    def build(self, url: str, llm: BaseLanguageModel, template: Prompt) -> Document:
         response = requests.get(url)
         prompt = PromptTemplate.from_template(template)
         chain = LLMChain(llm=llm, prompt=prompt)
@@ -53,7 +48,7 @@ def test_code_parser_get_tree():
     Test the __get_tree method of the CodeParser class.
     """
     parser = CodeParser(code_default)
-    tree = parser._CodeParser__get_tree()
+    tree = parser.get_tree()
     assert isinstance(tree, ast.AST)
 
 
@@ -66,7 +61,7 @@ def test_code_parser_syntax_error():
 
     parser = CodeParser(code_syntax_error)
     with pytest.raises(CodeSyntaxError):
-        parser._CodeParser__get_tree()
+        parser.get_tree()
 
 
 def test_component_init():
@@ -97,25 +92,13 @@ def test_component_code_null_error():
         component.get_function()
 
 
-def test_component_function_entrypoint_name_null_error():
-    """
-    Test the get_function method raises the ComponentFunctionEntrypointNameNullError
-    when the function_entrypoint_name is empty.
-    """
-    component = Component(code=code_default, function_entrypoint_name="")
-    with pytest.raises(ComponentFunctionEntrypointNameNullError):
-        component.get_function()
-
-
 def test_custom_component_init():
     """
     Test the initialization of the CustomComponent class.
     """
     function_entrypoint_name = "build"
 
-    custom_component = CustomComponent(
-        code=code_default, function_entrypoint_name=function_entrypoint_name
-    )
+    custom_component = CustomComponent(code=code_default, function_entrypoint_name=function_entrypoint_name)
     assert custom_component.code == code_default
     assert custom_component.function_entrypoint_name == function_entrypoint_name
 
@@ -124,10 +107,8 @@ def test_custom_component_build_template_config():
     """
     Test the build_template_config property of the CustomComponent class.
     """
-    custom_component = CustomComponent(
-        code=code_default, function_entrypoint_name="build"
-    )
-    config = custom_component.build_template_config
+    custom_component = CustomComponent(code=code_default, function_entrypoint_name="build")
+    config = custom_component.build_template_config()
     assert isinstance(config, dict)
 
 
@@ -135,10 +116,8 @@ def test_custom_component_get_function():
     """
     Test the get_function property of the CustomComponent class.
     """
-    custom_component = CustomComponent(
-        code="def build(): pass", function_entrypoint_name="build"
-    )
-    my_function = custom_component.get_function
+    custom_component = CustomComponent(code="def build(): pass", function_entrypoint_name="build")
+    my_function = custom_component.get_function()
     assert isinstance(my_function, types.FunctionType)
 
 
@@ -148,7 +127,7 @@ def test_code_parser_parse_imports_import():
     class with an import statement.
     """
     parser = CodeParser(code_default)
-    tree = parser._CodeParser__get_tree()
+    tree = parser.get_tree()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             parser.parse_imports(node)
@@ -161,7 +140,7 @@ def test_code_parser_parse_imports_importfrom():
     class with an import from statement.
     """
     parser = CodeParser("from os import path")
-    tree = parser._CodeParser__get_tree()
+    tree = parser.get_tree()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             parser.parse_imports(node)
@@ -173,7 +152,7 @@ def test_code_parser_parse_functions():
     Test the parse_functions method of the CodeParser class.
     """
     parser = CodeParser("def test(): pass")
-    tree = parser._CodeParser__get_tree()
+    tree = parser.get_tree()
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             parser.parse_functions(node)
@@ -186,7 +165,7 @@ def test_code_parser_parse_classes():
     Test the parse_classes method of the CodeParser class.
     """
     parser = CodeParser("class Test: pass")
-    tree = parser._CodeParser__get_tree()
+    tree = parser.get_tree()
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
             parser.parse_classes(node)
@@ -199,7 +178,7 @@ def test_code_parser_parse_global_vars():
     Test the parse_global_vars method of the CodeParser class.
     """
     parser = CodeParser("x = 1")
-    tree = parser._CodeParser__get_tree()
+    tree = parser.get_tree()
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             parser.parse_global_vars(node)
@@ -222,9 +201,7 @@ def test_custom_component_get_function_entrypoint_args():
     Test the get_function_entrypoint_args
     property of the CustomComponent class.
     """
-    custom_component = CustomComponent(
-        code=code_default, function_entrypoint_name="build"
-    )
+    custom_component = CustomComponent(code=code_default, function_entrypoint_name="build")
     args = custom_component.get_function_entrypoint_args
     assert len(args) == 4
     assert args[0]["name"] == "self"
@@ -237,20 +214,17 @@ def test_custom_component_get_function_entrypoint_return_type():
     Test the get_function_entrypoint_return_type
     property of the CustomComponent class.
     """
-    custom_component = CustomComponent(
-        code=code_default, function_entrypoint_name="build"
-    )
+
+    custom_component = CustomComponent(code=code_default, function_entrypoint_name="build")
     return_type = custom_component.get_function_entrypoint_return_type
-    assert return_type == ["Document"]
+    assert return_type == [Document]
 
 
 def test_custom_component_get_main_class_name():
     """
     Test the get_main_class_name property of the CustomComponent class.
     """
-    custom_component = CustomComponent(
-        code=code_default, function_entrypoint_name="build"
-    )
+    custom_component = CustomComponent(code=code_default, function_entrypoint_name="build")
     class_name = custom_component.get_main_class_name
     assert class_name == "YourComponent"
 
@@ -260,9 +234,7 @@ def test_custom_component_get_function_valid():
     Test the get_function property of the CustomComponent
     class with valid code and function_entrypoint_name.
     """
-    custom_component = CustomComponent(
-        code="def build(): pass", function_entrypoint_name="build"
-    )
+    custom_component = CustomComponent(code="def build(): pass", function_entrypoint_name="build")
     my_function = custom_component.get_function
     assert callable(my_function)
 
@@ -297,9 +269,7 @@ def test_code_parser_parse_callable_details_no_args():
     parser = CodeParser("")
     node = ast.FunctionDef(
         name="test",
-        args=ast.arguments(
-            args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]
-        ),
+        args=ast.arguments(args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),
         body=[],
         decorator_list=[],
         returns=None,
@@ -345,9 +315,7 @@ def test_code_parser_parse_function_def_not_init():
     parser = CodeParser("")
     stmt = ast.FunctionDef(
         name="test",
-        args=ast.arguments(
-            args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]
-        ),
+        args=ast.arguments(args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),
         body=[],
         decorator_list=[],
         returns=None,
@@ -365,9 +333,7 @@ def test_code_parser_parse_function_def_init():
     parser = CodeParser("")
     stmt = ast.FunctionDef(
         name="__init__",
-        args=ast.arguments(
-            args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]
-        ),
+        args=ast.arguments(args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),
         body=[],
         decorator_list=[],
         returns=None,
@@ -393,8 +359,8 @@ def test_custom_component_class_template_validation_no_code():
     raises the HTTPException when the code is None.
     """
     custom_component = CustomComponent(code=None, function_entrypoint_name="build")
-    with pytest.raises(HTTPException):
-        custom_component._class_template_validation(custom_component.code)
+    with pytest.raises(TypeError):
+        custom_component.get_function()
 
 
 def test_custom_component_get_code_tree_syntax_error():
@@ -402,9 +368,7 @@ def test_custom_component_get_code_tree_syntax_error():
     Test the get_code_tree method of the CustomComponent class
     raises the CodeSyntaxError when given incorrect syntax.
     """
-    custom_component = CustomComponent(
-        code="import os as", function_entrypoint_name="build"
-    )
+    custom_component = CustomComponent(code="import os as", function_entrypoint_name="build")
     with pytest.raises(CodeSyntaxError):
         custom_component.get_code_tree(custom_component.code)
 
@@ -458,9 +422,7 @@ def test_custom_component_build_not_implemented():
     Test the build method of the CustomComponent
     class raises the NotImplementedError.
     """
-    custom_component = CustomComponent(
-        code="def build(): pass", function_entrypoint_name="build"
-    )
+    custom_component = CustomComponent(code="def build(): pass", function_entrypoint_name="build")
     with pytest.raises(NotImplementedError):
         custom_component.build()
 
@@ -468,7 +430,7 @@ def test_custom_component_build_not_implemented():
 def test_build_config_no_code():
     component = CustomComponent(code=None)
 
-    assert component.get_function_entrypoint_args == ""
+    assert component.get_function_entrypoint_args == []
     assert component.get_function_entrypoint_return_type == []
 
 
@@ -494,9 +456,7 @@ def test_flow(db):
     }
 
     # Create flow
-    flow = FlowCreate(
-        id=uuid4(), name="Test Flow", description="Fixture flow", data=flow_data
-    )
+    flow = FlowCreate(id=uuid4(), name="Test Flow", description="Fixture flow", data=flow_data)
 
     # Add to database
     db.add(flow)

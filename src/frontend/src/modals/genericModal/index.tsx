@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SanitizedHTMLWrapper from "../../components/SanitizedHTMLWrapper";
 import ShadTooltip from "../../components/ShadTooltipComponent";
 import IconComponent from "../../components/genericIconComponent";
@@ -6,6 +6,13 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
 import {
+  BUG_ALERT,
+  PROMPT_ERROR_ALERT,
+  PROMPT_SUCCESS_ALERT,
+  TEMP_NOTICE_ALERT,
+} from "../../constants/alerts_constants";
+import {
+  EDIT_TEXT_PLACEHOLDER,
   INVALID_CHARACTERS,
   MAX_WORDS_HIGHLIGHT,
   PROMPT_DIALOG_SUBTITLE,
@@ -13,15 +20,11 @@ import {
   regexHighlight,
 } from "../../constants/constants";
 import { TypeModal } from "../../constants/enums";
-import { alertContext } from "../../contexts/alertContext";
 import { postValidatePrompt } from "../../controllers/API";
+import useAlertStore from "../../stores/alertStore";
 import { genericModalPropsType } from "../../types/components";
 import { handleKeyDown } from "../../utils/reactflowUtils";
-import {
-  classNames,
-  getRandomKeyByssmm,
-  varHighlightHTML,
-} from "../../utils/utils";
+import { classNames, varHighlightHTML } from "../../utils/utils";
 import BaseModal from "../baseModal";
 
 export default function GenericModal({
@@ -34,16 +37,20 @@ export default function GenericModal({
   nodeClass,
   setNodeClass,
   children,
+  id = "",
+  readonly = false,
 }: genericModalPropsType): JSX.Element {
   const [myButtonText] = useState(buttonText);
   const [myModalTitle] = useState(modalTitle);
+  const [modalOpen, setModalOpen] = useState(false);
   const [myModalType] = useState(type);
   const [inputValue, setInputValue] = useState(value);
   const [isEdit, setIsEdit] = useState(true);
   const [wordsHighlight, setWordsHighlight] = useState<string[]>([]);
-  const { setErrorData, setSuccessData, setNoticeData } =
-    useContext(alertContext);
-  const ref = useRef();
+  const setSuccessData = useAlertStore((state) => state.setSuccessData);
+  const setErrorData = useAlertStore((state) => state.setErrorData);
+  const setNoticeData = useAlertStore((state) => state.setNoticeData);
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const divRef = useRef(null);
   const divRefPrompt = useRef(null);
 
@@ -89,27 +96,24 @@ export default function GenericModal({
 
   useEffect(() => {
     setInputValue(value);
-  }, [value]);
-
+  }, [value, modalOpen]);
   const coloredContent = (inputValue || "")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(regexHighlight, varHighlightHTML({ name: "$1" }))
+    .replace(regexHighlight, (match, p1, p2) => {
+      // Decide which group was matched. If p1 is not undefined, do nothing
+      // we don't want to change the text. If p2 is not undefined, then we
+      // have a variable, so we should highlight it.
+      // ! This will not work with multiline or indented json yet
+      if (p1 !== undefined) {
+        return match;
+      } else if (p2 !== undefined) {
+        return varHighlightHTML({ name: p2 });
+      }
+
+      return match;
+    })
     .replace(/\n/g, "<br />");
-
-  const TextAreaContentView = (): JSX.Element => {
-    return (
-      <SanitizedHTMLWrapper
-        className={getClassByNumberLength()}
-        content={coloredContent}
-        onClick={() => {
-          setIsEdit(true);
-        }}
-        suppressWarning={true}
-      />
-    );
-  };
-
   function getClassByNumberLength(): string {
     let sumOfCaracteres: number = 0;
     wordsHighlight.forEach((element) => {
@@ -120,54 +124,55 @@ export default function GenericModal({
       : "code-nohighlight";
   }
 
+  // Function need some review, working for now
   function validatePrompt(closeModal: boolean): void {
     //nodeClass is always null on tweaks
-
     postValidatePrompt(field_name, inputValue, nodeClass!)
       .then((apiReturn) => {
+        // if field_name is an empty string, then we need to set it
+        // to the first key of the custom_fields object
+        if (field_name === "") {
+          field_name = Array.isArray(
+            apiReturn.data?.frontend_node?.custom_fields?.[""]
+          )
+            ? apiReturn.data?.frontend_node?.custom_fields?.[""][0] ?? ""
+            : apiReturn.data?.frontend_node?.custom_fields?.[""] ?? "";
+        }
         if (apiReturn.data) {
-          setValue(inputValue);
-          apiReturn.data.frontend_node["template"]["template"]["value"] =
-            inputValue;
-          setNodeClass!(apiReturn?.data?.frontend_node);
-
           let inputVariables = apiReturn.data.input_variables ?? [];
-          if (inputVariables && inputVariables.length === 0) {
-            setIsEdit(true);
-            setNoticeData({
-              title: "Your template does not have any variables.",
-            });
-            setModalOpen(false);
-          } else {
-            setIsEdit(false);
-            setSuccessData({
-              title: "Prompt is ready",
-            });
-            if (
-              JSON.stringify(apiReturn.data?.frontend_node) !==
-              JSON.stringify({})
-            )
-              setNodeClass!(apiReturn.data?.frontend_node);
+          if (
+            JSON.stringify(apiReturn.data?.frontend_node) !== JSON.stringify({})
+          ) {
+            if (setNodeClass)
+              setNodeClass(apiReturn.data?.frontend_node, inputValue);
             setModalOpen(closeModal);
-            setValue(inputValue);
+            setIsEdit(false);
+          }
+          if (!inputVariables || inputVariables.length === 0) {
+            setNoticeData({
+              title: TEMP_NOTICE_ALERT,
+            });
+          } else {
+            setSuccessData({
+              title: PROMPT_SUCCESS_ALERT,
+            });
           }
         } else {
           setIsEdit(true);
           setErrorData({
-            title: "Something went wrong, please try again",
+            title: BUG_ALERT,
           });
         }
       })
       .catch((error) => {
+        console.log(error);
         setIsEdit(true);
         return setErrorData({
-          title: "There is something wrong with this prompt, please review it",
-          list: [error?.response?.data?.detail],
+          title: PROMPT_ERROR_ALERT,
+          list: [error.response.data.detail ?? ""],
         });
       });
   }
-
-  const [modalOpen, setModalOpen] = useState(false);
 
   return (
     <BaseModal
@@ -190,9 +195,11 @@ export default function GenericModal({
           }
         })()}
       >
-        <span className="pr-2">{myModalTitle}</span>
+        <span className="pr-2" data-testid="modal-title">
+          {myModalTitle}
+        </span>
         <IconComponent
-          name="FileText"
+          name={myModalTitle === "Edit Prompt" ? "TerminalSquare" : "FileText"}
           className="h-6 w-6 pl-1 text-primary "
           aria-hidden="true"
         />
@@ -205,8 +212,10 @@ export default function GenericModal({
               "flex h-full w-full"
             )}
           >
-            {type === TypeModal.PROMPT && isEdit ? (
+            {type === TypeModal.PROMPT && isEdit && !readonly ? (
               <Textarea
+                id={"modal-" + id}
+                data-testid={"modal-" + id}
                 ref={divRefPrompt}
                 className="form-input h-full w-full rounded-lg custom-scroll focus-visible:ring-1"
                 value={inputValue}
@@ -218,26 +227,35 @@ export default function GenericModal({
                   setInputValue(event.target.value);
                   checkVariables(event.target.value);
                 }}
-                placeholder="Type message here."
+                placeholder={EDIT_TEXT_PLACEHOLDER}
                 onKeyDown={(e) => {
                   handleKeyDown(e, inputValue, "");
                 }}
               />
-            ) : type === TypeModal.PROMPT && !isEdit ? (
-              <TextAreaContentView />
+            ) : type === TypeModal.PROMPT && (!isEdit || readonly) ? (
+              <SanitizedHTMLWrapper
+                className={getClassByNumberLength()}
+                content={coloredContent}
+                onClick={() => {
+                  setIsEdit(true);
+                }}
+                suppressWarning={true}
+              />
             ) : type !== TypeModal.PROMPT ? (
               <Textarea
-                //@ts-ignore
-                ref={ref}
+                ref={textRef}
                 className="form-input h-full w-full rounded-lg focus-visible:ring-1"
                 value={inputValue}
                 onChange={(event) => {
                   setInputValue(event.target.value);
                 }}
-                placeholder="Type message here."
+                placeholder={EDIT_TEXT_PLACEHOLDER}
                 onKeyDown={(e) => {
                   handleKeyDown(e, value, "");
                 }}
+                readOnly={readonly}
+                id={"text-area-modal"}
+                data-testid={"text-area-modal"}
               />
             ) : (
               <></>
@@ -254,7 +272,7 @@ export default function GenericModal({
                   >
                     <div className="flex flex-wrap items-center">
                       <IconComponent
-                        name="Variable"
+                        name="Braces"
                         className=" -ml-px mr-1 flex h-4 w-4 text-primary"
                       />
                       <span className="text-md font-semibold text-primary">
@@ -263,7 +281,7 @@ export default function GenericModal({
 
                       {wordsHighlight.map((word, index) => (
                         <ShadTooltip
-                          key={getRandomKeyByssmm() + index}
+                          key={index}
                           content={word.replace(/[{}]/g, "")}
                           asChild={false}
                         >
@@ -274,7 +292,7 @@ export default function GenericModal({
                             className="m-1 max-w-[40vw] cursor-default truncate p-2.5 text-sm"
                           >
                             <div className="relative bottom-[1px]">
-                              <span>
+                              <span id={"badge" + index.toString()}>
                                 {word.replace(/[{}]/g, "").length > 59
                                   ? word.replace(/[{}]/g, "").slice(0, 56) +
                                     "..."
@@ -294,6 +312,9 @@ export default function GenericModal({
               )}
             </div>
             <Button
+              data-testid="genericModalBtnSave"
+              id="genericModalBtnSave"
+              disabled={readonly}
               onClick={() => {
                 switch (myModalType) {
                   case TypeModal.TEXT:

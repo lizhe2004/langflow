@@ -28,7 +28,18 @@ module.exports = {
       },
     },
     extend: {
+      keyframes: {
+        wiggle: {
+          "0%, 100%": { transform: "scale(100%)" },
+          "50%": { transform: "scale(120%)" },
+        },
+      },
+      animation: {
+        wiggle: "wiggle 150ms ease-in-out 1",
+      },
       colors: {
+        "component-icon": "var(--component-icon)",
+        "flow-icon": "var(--flow-icon)",
         "low-indigo": "var(--low-indigo)",
         "chat-send": "var(--chat-send)",
         connection: "var(--connection)",
@@ -69,13 +80,15 @@ module.exports = {
         "status-green": "var(--status-green)",
         "status-red": "var(--status-red)",
         "status-yellow": "var(--status-yellow)",
+        "status-gray": "var(--status-gray)",
         "success-background": "var(--success-background)",
         "success-foreground": "var(--success-foreground)",
         "beta-background": "var(--beta-background)",
         "beta-foreground": "var(--beta-foreground)",
         "chat-bot-icon": "var(--chat-bot-icon)",
         "chat-user-icon": "var(--chat-user-icon)",
-
+        ice: "var(--ice)",
+        hover: "var(--hover)",
         white: "var(--white)",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -211,5 +224,6 @@ module.exports = {
     }),
     require("@tailwindcss/typography"),
     require("daisyui"),
+    require("tailwindcss-dotted-background"),
   ],
 };
