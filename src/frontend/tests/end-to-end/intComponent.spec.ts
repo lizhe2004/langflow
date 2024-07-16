@@ -1,14 +1,31 @@
 import { expect, test } from "@playwright/test";
 
 test("IntComponent", async ({ page }) => {
-  await page.goto("http:localhost:3000/");
+  await page.goto("/");
   await page.waitForTimeout(2000);
 
-  await page.locator('//*[@id="new-project-btn"]').click();
-  await page.waitForTimeout(1000);
+  let modalCount = 0;
+  try {
+    const modalTitleElement = await page?.getByTestId("modal-title");
+    if (modalTitleElement) {
+      modalCount = await modalTitleElement.count();
+    }
+  } catch (error) {
+    modalCount = 0;
+  }
 
+  while (modalCount === 0) {
+    await page.getByText("New Project", { exact: true }).click();
+    await page.waitForTimeout(5000);
+    modalCount = await page.getByTestId("modal-title")?.count();
+  }
+  await page.waitForSelector('[data-testid="blank-flow"]', {
+    timeout: 30000,
+  });
   await page.getByTestId("blank-flow").click();
-  await page.waitForTimeout(1000);
+  await page.waitForSelector('[data-testid="extended-disclosure"]', {
+    timeout: 30000,
+  });
   await page.getByTestId("extended-disclosure").click();
   await page.getByPlaceholder("Search").click();
   await page.getByPlaceholder("Search").fill("openai");
@@ -16,22 +33,25 @@ test("IntComponent", async ({ page }) => {
   await page.waitForTimeout(1000);
 
   await page
-    .getByTestId("model_specsChatOpenAI")
+    .getByTestId("modelsOpenAI")
     .first()
     .dragTo(page.locator('//*[@id="react-flow-id"]'));
   await page.mouse.up();
   await page.mouse.down();
-  await page
-    .locator('//*[@id="react-flow-id"]/div[1]/div[2]/button[2]')
-    .click();
+  await page.waitForSelector('[title="fit view"]', {
+    timeout: 100000,
+  });
 
-  await page
-    .locator('//*[@id="react-flow-id"]/div[1]/div[2]/button[2]')
-    .click();
+  await page.getByTitle("fit view").click();
+  await page.getByTitle("zoom out").click();
+  await page.getByTitle("zoom out").click();
+  await page.getByTitle("zoom out").click();
 
-  await page
-    .locator('//*[@id="react-flow-id"]/div[1]/div[2]/button[2]')
-    .click();
+  await page.getByTestId("more-options-modal").click();
+  await page.getByTestId("edit-button-modal").click();
+  await page.getByTestId("showmax_tokens").click();
+
+  await page.getByText("Close").last().click();
   await page.getByTestId("int-input-max_tokens").click();
   await page
     .getByTestId("int-input-max_tokens")
@@ -52,18 +72,16 @@ test("IntComponent", async ({ page }) => {
     expect(false).toBeTruthy();
   }
 
-  await page.getByTestId("title-ChatOpenAI").click();
-  await page
-    .locator('//*[@id="react-flow-id"]/div[1]/div[2]/button[2]')
-    .click();
+  await page.getByTestId("title-OpenAI").click();
 
-  await page
-    .locator('//*[@id="react-flow-id"]/div[1]/div[2]/button[2]')
-    .click();
+  await page.waitForSelector('[title="fit view"]', {
+    timeout: 100000,
+  });
 
-  await page
-    .locator('//*[@id="react-flow-id"]/div[1]/div[2]/button[2]')
-    .click();
+  await page.getByTitle("fit view").click();
+  await page.getByTitle("zoom out").click();
+  await page.getByTitle("zoom out").click();
+  await page.getByTitle("zoom out").click();
 
   await page.getByTestId("more-options-modal").click();
   await page.getByTestId("edit-button-modal").click();
@@ -81,83 +99,83 @@ test("IntComponent", async ({ page }) => {
 
   await page.locator('//*[@id="showmodel_kwargs"]').click();
   expect(
-    await page.locator('//*[@id="showmodel_kwargs"]').isChecked()
+    await page.locator('//*[@id="showmodel_kwargs"]').isChecked(),
   ).toBeTruthy();
 
   await page.locator('//*[@id="showmodel_name"]').click();
   expect(
-    await page.locator('//*[@id="showmodel_name"]').isChecked()
+    await page.locator('//*[@id="showmodel_name"]').isChecked(),
   ).toBeFalsy();
 
   await page.locator('//*[@id="showopenai_api_base"]').click();
   expect(
-    await page.locator('//*[@id="showopenai_api_base"]').isChecked()
-  ).toBeFalsy();
+    await page.locator('//*[@id="showopenai_api_base"]').isChecked(),
+  ).toBeTruthy();
 
   await page.locator('//*[@id="showopenai_api_key"]').click();
   expect(
-    await page.locator('//*[@id="showopenai_api_key"]').isChecked()
+    await page.locator('//*[@id="showopenai_api_key"]').isChecked(),
   ).toBeFalsy();
 
   await page.locator('//*[@id="showtemperature"]').click();
   expect(
-    await page.locator('//*[@id="showtemperature"]').isChecked()
+    await page.locator('//*[@id="showtemperature"]').isChecked(),
   ).toBeFalsy();
 
   await page.locator('//*[@id="showmodel_kwargs"]').click();
   expect(
-    await page.locator('//*[@id="showmodel_kwargs"]').isChecked()
+    await page.locator('//*[@id="showmodel_kwargs"]').isChecked(),
   ).toBeFalsy();
 
   await page.locator('//*[@id="showmodel_name"]').click();
   expect(
-    await page.locator('//*[@id="showmodel_name"]').isChecked()
+    await page.locator('//*[@id="showmodel_name"]').isChecked(),
   ).toBeTruthy();
 
   await page.locator('//*[@id="showopenai_api_base"]').click();
   expect(
-    await page.locator('//*[@id="showopenai_api_base"]').isChecked()
-  ).toBeTruthy();
+    await page.locator('//*[@id="showopenai_api_base"]').isChecked(),
+  ).toBeFalsy();
 
   await page.locator('//*[@id="showopenai_api_key"]').click();
   expect(
-    await page.locator('//*[@id="showopenai_api_key"]').isChecked()
+    await page.locator('//*[@id="showopenai_api_key"]').isChecked(),
   ).toBeTruthy();
 
   await page.locator('//*[@id="showtemperature"]').click();
   expect(
-    await page.locator('//*[@id="showtemperature"]').isChecked()
+    await page.locator('//*[@id="showtemperature"]').isChecked(),
   ).toBeTruthy();
 
   await page.locator('//*[@id="showmodel_kwargs"]').click();
   expect(
-    await page.locator('//*[@id="showmodel_kwargs"]').isChecked()
+    await page.locator('//*[@id="showmodel_kwargs"]').isChecked(),
   ).toBeTruthy();
 
   await page.locator('//*[@id="showmodel_name"]').click();
   expect(
-    await page.locator('//*[@id="showmodel_name"]').isChecked()
+    await page.locator('//*[@id="showmodel_name"]').isChecked(),
   ).toBeFalsy();
 
   await page.locator('//*[@id="showopenai_api_base"]').click();
   expect(
-    await page.locator('//*[@id="showopenai_api_base"]').isChecked()
-  ).toBeFalsy();
+    await page.locator('//*[@id="showopenai_api_base"]').isChecked(),
+  ).toBeTruthy();
 
   await page.locator('//*[@id="showopenai_api_key"]').click();
   expect(
-    await page.locator('//*[@id="showopenai_api_key"]').isChecked()
+    await page.locator('//*[@id="showopenai_api_key"]').isChecked(),
   ).toBeFalsy();
 
   await page.locator('//*[@id="showtemperature"]').click();
   expect(
-    await page.locator('//*[@id="showtemperature"]').isChecked()
+    await page.locator('//*[@id="showtemperature"]').isChecked(),
   ).toBeFalsy();
 
-  await page.locator('//*[@id="saveChangesBtn"]').click();
+  await page.getByText("Close").last().click();
 
   const plusButtonLocator = page.getByTestId("int-input-max_tokens");
-  const elementCount = await plusButtonLocator.count();
+  const elementCount = await plusButtonLocator?.count();
   if (elementCount === 0) {
     expect(true).toBeTruthy();
 
@@ -166,7 +184,7 @@ test("IntComponent", async ({ page }) => {
 
     await page.locator('//*[@id="showtimeout"]').click();
     expect(
-      await page.locator('//*[@id="showtimeout"]').isChecked()
+      await page.locator('//*[@id="showtimeout"]').isChecked(),
     ).toBeTruthy();
 
     const valueEditNode = await page
@@ -177,7 +195,7 @@ test("IntComponent", async ({ page }) => {
       expect(false).toBeTruthy();
     }
 
-    await page.locator('//*[@id="saveChangesBtn"]').click();
+    await page.getByText("Close").last().click();
     await page.getByTestId("int-input-max_tokens").click();
     await page.getByTestId("int-input-max_tokens").fill("3");
 

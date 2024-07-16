@@ -1,9 +1,9 @@
 import { useEffect } from "react";
+import { Controller } from "react-hook-form";
 import { deleteGlobalVariable } from "../../controllers/API";
-import DeleteConfirmationModal from "../../modals/DeleteConfirmationModal";
+import DeleteConfirmationModal from "../../modals/deleteConfirmationModal";
 import useAlertStore from "../../stores/alertStore";
-import { useGlobalVariablesStore } from "../../stores/globalVariables";
-import { ResponseErrorDetailAPI } from "../../types/api";
+import { useGlobalVariablesStore } from "../../stores/globalVariablesStore/globalVariables";
 import { InputGlobalComponentType } from "../../types/components";
 import { cn } from "../../utils/utils";
 import AddNewVariableButton from "../addNewVariableButtonComponent/addNewVariableButton";
@@ -14,51 +14,41 @@ import { CommandItem } from "../ui/command";
 export default function InputGlobalComponent({
   disabled,
   onChange,
-  setDb,
   name,
   data,
   editNode = false,
 }: InputGlobalComponentType): JSX.Element {
   const globalVariablesEntries = useGlobalVariablesStore(
-    (state) => state.globalVariablesEntries
+    (state) => state.globalVariablesEntries,
   );
 
   const getVariableId = useGlobalVariablesStore((state) => state.getVariableId);
   const removeGlobalVariable = useGlobalVariablesStore(
-    (state) => state.removeGlobalVariable
+    (state) => state.removeGlobalVariable,
   );
   const setErrorData = useAlertStore((state) => state.setErrorData);
 
   useEffect(() => {
-    if (data.node?.template[name])
-      if (
-        !globalVariablesEntries.includes(data.node?.template[name].value) &&
-        data.node?.template[name].load_from_db
-      ) {
-        onChange("");
-        setDb(false);
+    if (data && globalVariablesEntries)
+      if (data.load_from_db && !globalVariablesEntries.includes(data.value)) {
+        onChange("", false, true);
       }
   }, [globalVariablesEntries]);
 
-  function handleDelete(key: string) {
+  async function handleDelete(key: string) {
     const id = getVariableId(key);
     if (id !== undefined) {
-      deleteGlobalVariable(id)
-        .then((_) => {
+      await deleteGlobalVariable(id)
+        .then(() => {
           removeGlobalVariable(key);
-          if (
-            data?.node?.template[name].value === key &&
-            data?.node?.template[name].load_from_db
-          ) {
-            onChange("");
-            setDb(false);
+          if (data?.value === key && data?.load_from_db) {
+            onChange("", false);
           }
         })
-        .catch((error) => {
-          let responseError = error as ResponseErrorDetailAPI;
+        .catch(() => {
           setErrorData({
             title: "Error deleting variable",
-            list: [responseError.response.data.detail ?? "Unknown error"],
+            list: [cn("ID not found for variable: ", key)],
           });
         });
     } else {
@@ -73,8 +63,8 @@ export default function InputGlobalComponent({
       id={"input-" + name}
       editNode={editNode}
       disabled={disabled}
-      password={data.node?.template[name].password ?? false}
-      value={data.node?.template[name].value ?? ""}
+      password={data.password ?? false}
+      value={data.value ?? ""}
       options={globalVariablesEntries}
       optionsPlaceholder={"Global Variables"}
       optionsIcon="Globe"
@@ -109,7 +99,7 @@ export default function InputGlobalComponent({
             <ForwardedIconComponent
               name="Trash2"
               className={cn(
-                "h-4 w-4 text-primary opacity-0 hover:text-status-red group-hover:opacity-100"
+                "h-4 w-4 text-primary opacity-0 hover:text-status-red group-hover:opacity-100",
               )}
               aria-hidden="true"
             />
@@ -117,17 +107,17 @@ export default function InputGlobalComponent({
         </DeleteConfirmationModal>
       )}
       selectedOption={
-        data?.node?.template[name].load_from_db ?? false
-          ? data?.node?.template[name].value
+        data?.load_from_db &&
+        globalVariablesEntries &&
+        globalVariablesEntries.includes(data?.value ?? "")
+          ? data?.value
           : ""
       }
       setSelectedOption={(value) => {
-        onChange(value);
-        setDb(value !== "" ? true : false);
+        onChange(value, value !== "" ? true : false);
       }}
-      onChange={(value) => {
-        onChange(value);
-        setDb(false);
+      onChange={(value, skipSnapshot) => {
+        onChange(value, false, skipSnapshot);
       }}
     />
   );

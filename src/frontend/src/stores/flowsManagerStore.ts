@@ -1,13 +1,13 @@
 import { AxiosError } from "axios";
-import { cloneDeep, debounce } from "lodash";
+import { cloneDeep } from "lodash";
+import pDebounce from "p-debounce";
+import { useLocation } from "react-router-dom";
 import { Edge, Node, Viewport, XYPosition } from "reactflow";
 import { create } from "zustand";
-import {
-  SAVE_DEBOUNCE_TIME,
-  STARTER_FOLDER_NAME,
-} from "../constants/constants";
+import { SAVE_DEBOUNCE_TIME } from "../constants/constants";
 import {
   deleteFlowFromDatabase,
+  multipleDeleteFlowsComponents,
   readFlowsFromDatabase,
   saveFlowToDatabase,
   updateFlowInDatabase,
@@ -22,12 +22,16 @@ import {
   addVersionToDuplicates,
   createFlowComponent,
   createNewFlow,
+  extractFieldsFromComponenents,
   processDataFromFlow,
   processFlows,
+  updateGroupRecursion,
 } from "../utils/reactflowUtils";
 import useAlertStore from "./alertStore";
 import { useDarkStore } from "./darkStore";
 import useFlowStore from "./flowStore";
+import { useFolderStore } from "./foldersStore";
+import { useGlobalVariablesStore } from "./globalVariablesStore/globalVariables";
 import { useTypesStore } from "./typesStore";
 
 let saveTimeoutId: NodeJS.Timeout | null = null;
@@ -46,6 +50,15 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     set({ examples });
   },
   currentFlowId: "",
+  setCurrentFlow: (flow: FlowType) => {
+    set((state) => ({
+      currentFlow: flow,
+      currentFlowId: flow.id,
+    }));
+  },
+  getFlowById: (id: string) => {
+    return get().flows.find((flow) => flow.id === id);
+  },
   setCurrentFlowId: (currentFlowId: string) => {
     set((state) => ({
       currentFlowId,
@@ -53,6 +66,10 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     }));
   },
   flows: [],
+  allFlows: [],
+  setAllFlows: (allFlows: FlowType[]) => {
+    set({ allFlows });
+  },
   setFlows: (flows: FlowType[]) => {
     set({
       flows,
@@ -66,22 +83,29 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   refreshFlows: () => {
     return new Promise<void>((resolve, reject) => {
       set({ isLoading: true });
+
+      const starterFolderId = useFolderStore.getState().starterProjectId;
+
       readFlowsFromDatabase()
         .then((dbData) => {
           if (dbData) {
-            const { data, flows } = processFlows(dbData, false);
-            get().setExamples(
-              flows.filter(
-                (f) => f.folder === STARTER_FOLDER_NAME && !f.user_id
-              )
+            const { data, flows } = processFlows(dbData);
+            const examples = flows.filter(
+              (flow) => flow.folder_id === starterFolderId,
             );
-            get().setFlows(
-              flows.filter(
-                (f) => !(f.folder === STARTER_FOLDER_NAME && !f.user_id)
-              )
+            get().setExamples(examples);
+
+            const flowsWithoutStarterFolder = flows.filter(
+              (flow) => flow.folder_id !== starterFolderId,
             );
+
+            get().setFlows(flowsWithoutStarterFolder);
             useTypesStore.setState((state) => ({
               data: { ...state.data, ["saved_components"]: data },
+              ComponentFields: extractFieldsFromComponenents({
+                ...state.data,
+                ["saved_components"]: data,
+              }),
             }));
             set({ isLoading: false });
             resolve();
@@ -100,7 +124,7 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     if (get().currentFlow) {
       get().saveFlow(
         { ...get().currentFlow!, data: { nodes, edges, viewport } },
-        true
+        true,
       );
     }
   },
@@ -108,7 +132,14 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     set({ saveLoading: true }); // set saveLoading true immediately
     return get().saveFlowDebounce(flow, silent); // call the debounced function directly
   },
-  saveFlowDebounce: debounce((flow: FlowType, silent?: boolean) => {
+  saveFlowDebounce: pDebounce((flow: FlowType, silent?: boolean) => {
+    const folderUrl = useFolderStore.getState().folderUrl;
+    const hasFolderUrl = folderUrl != null && folderUrl !== "";
+
+    flow.folder_id = hasFolderUrl
+      ? useFolderStore.getState().folderUrl
+      : useFolderStore.getState().myCollectionId ?? "";
+
     set({ saveLoading: true });
     return new Promise<void>((resolve, reject) => {
       updateFlowInDatabase(flow)
@@ -126,7 +157,7 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
                   return updatedFlow;
                 }
                 return flow;
-              })
+              }),
             );
             //update tabs state
 
@@ -176,18 +207,32 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     newProject: Boolean,
     flow?: FlowType,
     override?: boolean,
-    position?: XYPosition
+    position?: XYPosition,
+    fromDragAndDrop?: boolean,
   ): Promise<string | undefined> => {
+    let flowData = flow
+      ? processDataFromFlow(flow)
+      : { nodes: [], edges: [], viewport: { zoom: 1, x: 0, y: 0 } };
+    flowData?.nodes.forEach((node) => {
+      updateGroupRecursion(
+        node,
+        flowData?.edges,
+        useGlobalVariablesStore.getState().unavaliableFields,
+        useGlobalVariablesStore.getState().globalVariablesEntries,
+      );
+    });
     if (newProject) {
-      let flowData = flow
-        ? processDataFromFlow(flow)
-        : { nodes: [], edges: [], viewport: { zoom: 1, x: 0, y: 0 } };
-
       // Create a new flow with a default name if no flow is provided.
+      const folder_id = useFolderStore.getState().folderUrl;
+      const my_collection_id = useFolderStore.getState().myCollectionId;
 
       if (override) {
         get().deleteComponent(flow!.name);
-        const newFlow = createNewFlow(flowData!, flow!);
+        const newFlow = createNewFlow(
+          flowData!,
+          flow!,
+          folder_id || my_collection_id!,
+        );
         const { id } = await saveFlowToDatabase(newFlow);
         newFlow.id = id;
         //setTimeout  to prevent update state with wrong state
@@ -197,17 +242,26 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
           set({ isLoading: false });
           useTypesStore.setState((state) => ({
             data: { ...state.data, ["saved_components"]: data },
+            ComponentFields: extractFieldsFromComponenents({
+              ...state.data,
+              ["saved_components"]: data,
+            }),
           }));
         }, 200);
         // addFlowToLocalState(newFlow);
         return;
       }
-
-      const newFlow = createNewFlow(flowData!, flow!);
+      const newFlow = createNewFlow(
+        flowData!,
+        flow!,
+        folder_id || my_collection_id!,
+      );
 
       const newName = addVersionToDuplicates(newFlow, get().flows);
 
       newFlow.name = newName;
+      newFlow.folder_id = useFolderStore.getState().folderUrl;
+
       try {
         const { id } = await saveFlowToDatabase(newFlow);
         // Change the id to the new id.
@@ -219,12 +273,28 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
         set({ isLoading: false });
         useTypesStore.setState((state) => ({
           data: { ...state.data, ["saved_components"]: data },
+          ComponentFields: extractFieldsFromComponenents({
+            ...state.data,
+            ["saved_components"]: data,
+          }),
         }));
 
         // Return the id
         return id;
-      } catch (error) {
-        // Handle the error if needed
+      } catch (error: any) {
+        if (error.response?.data?.detail) {
+          useAlertStore.getState().setErrorData({
+            title: "Could not load flows from database",
+            list: [error.response?.data?.detail],
+          });
+        } else {
+          useAlertStore.getState().setErrorData({
+            title: "Could not load flows from database",
+            list: [
+              error.message ?? "An unexpected error occurred, please try again",
+            ],
+          });
+        }
         throw error; // Re-throw the error so the caller can handle it if needed
       }
     } else {
@@ -232,25 +302,51 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
         .getState()
         .paste(
           { nodes: flow!.data!.nodes, edges: flow!.data!.edges },
-          position ?? { x: 10, y: 10 }
+          position ?? { x: 10, y: 10 },
         );
     }
   },
-  removeFlow: async (id: string) => {
-    return new Promise<void>((resolve) => {
-      const index = get().flows.findIndex((flow) => flow.id === id);
-      if (index >= 0) {
-        deleteFlowFromDatabase(id).then(() => {
-          const { data, flows } = processFlows(
-            get().flows.filter((flow) => flow.id !== id)
-          );
-          get().setFlows(flows);
-          set({ isLoading: false });
-          useTypesStore.setState((state) => ({
-            data: { ...state.data, ["saved_components"]: data },
-          }));
-          resolve();
-        });
+  removeFlow: async (id: string | string[]) => {
+    return new Promise<void>((resolve, reject) => {
+      if (Array.isArray(id)) {
+        multipleDeleteFlowsComponents(id)
+          .then(() => {
+            const { data, flows } = processFlows(
+              get().flows.filter((flow) => !id.includes(flow.id)),
+            );
+            get().setFlows(flows);
+            set({ isLoading: false });
+            useTypesStore.setState((state) => ({
+              data: { ...state.data, ["saved_components"]: data },
+              ComponentFields: extractFieldsFromComponenents({
+                ...state.data,
+                ["saved_components"]: data,
+              }),
+            }));
+            resolve();
+          })
+          .catch((e) => reject(e));
+      } else {
+        const index = get().flows.findIndex((flow) => flow.id === id);
+        if (index >= 0) {
+          deleteFlowFromDatabase(id)
+            .then(() => {
+              const { data, flows } = processFlows(
+                get().flows.filter((flow) => flow.id !== id),
+              );
+              get().setFlows(flows);
+              set({ isLoading: false });
+              useTypesStore.setState((state) => ({
+                data: { ...state.data, ["saved_components"]: data },
+                ComponentFields: extractFieldsFromComponenents({
+                  ...state.data,
+                  ["saved_components"]: data,
+                }),
+              }));
+              resolve();
+            })
+            .catch((e) => reject(e));
+        }
       }
     });
   },
@@ -258,7 +354,7 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     return new Promise<void>((resolve) => {
       let componentFlow = get().flows.find(
         (componentFlow) =>
-          componentFlow.is_component && componentFlow.name === key
+          componentFlow.is_component && componentFlow.name === key,
       );
 
       if (componentFlow) {
@@ -273,12 +369,12 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   uploadFlow: async ({
     newProject,
     file,
-    isComponent = false,
+    isComponent,
     position = { x: 10, y: 10 },
   }: {
     newProject: boolean;
     file?: File;
-    isComponent?: boolean;
+    isComponent: boolean | null;
     position?: XYPosition;
   }): Promise<string | never> => {
     return new Promise(async (resolve, reject) => {
@@ -288,6 +384,7 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
         let fileData = JSON.parse(text);
         if (
           newProject &&
+          isComponent !== null &&
           ((!fileData.is_component && isComponent === true) ||
             (fileData.is_component !== undefined &&
               fileData.is_component !== isComponent))
@@ -300,7 +397,13 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
             });
             resolve("");
           } else {
-            id = await get().addFlow(newProject, fileData, undefined, position);
+            id = await get().addFlow(
+              newProject,
+              fileData,
+              undefined,
+              position,
+              true,
+            );
             resolve(id);
           }
         }
@@ -340,7 +443,7 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     return get().addFlow(
       true,
       createFlowComponent(component, useDarkStore.getState().version),
-      override
+      override,
     );
   },
   takeSnapshot: () => {
@@ -361,7 +464,7 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     if (pastLength > 0) {
       past[currentFlowId] = past[currentFlowId].slice(
         pastLength - defaultOptions.maxHistorySize + 1,
-        pastLength
+        pastLength,
       );
 
       past[currentFlowId].push(newState);
@@ -408,6 +511,14 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
       newState.setNodes(futureState.nodes);
       newState.setEdges(futureState.edges);
     }
+  },
+  searchFlowsComponents: "",
+  setSearchFlowsComponents: (searchFlowsComponents: string) => {
+    set({ searchFlowsComponents });
+  },
+  selectedFlowsComponentsCards: [],
+  setSelectedFlowsComponentsCards: (selectedFlowsComponentsCards: string[]) => {
+    set({ selectedFlowsComponentsCards });
   },
 }));
 

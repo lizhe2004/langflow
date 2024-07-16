@@ -1,84 +1,104 @@
-import os
-from typing import List, Optional, Union
+from typing import List
 
-import pinecone  # type: ignore
-from langchain.schema import BaseRetriever
-from langchain_community.vectorstores import VectorStore
-from langchain_community.vectorstores.pinecone import Pinecone
+from langchain_pinecone import Pinecone
 
-from langflow.field_typing import Embeddings
-from langflow.interface.custom.custom_component import CustomComponent
-from langflow.schema.schema import Record
+from langflow.base.vectorstores.model import LCVectorStoreComponent
+from langflow.helpers.data import docs_to_data
+from langflow.io import (
+    DropdownInput,
+    HandleInput,
+    IntInput,
+    StrInput,
+    SecretStrInput,
+    DataInput,
+    MultilineInput,
+)
+from langflow.schema import Data
 
 
-class PineconeComponent(CustomComponent):
+class PineconeVectorStoreComponent(LCVectorStoreComponent):
     display_name = "Pinecone"
-    description = "Construct Pinecone wrapper from raw documents."
+    description = "Pinecone Vector Store with search capabilities"
+    documentation = "https://python.langchain.com/v0.2/docs/integrations/vectorstores/pinecone/"
+    name = "Pinecone"
     icon = "Pinecone"
 
-    def build_config(self):
-        return {
-            "inputs": {"display_name": "Input", "input_types": ["Document", "Record"]},
-            "embedding": {"display_name": "Embedding"},
-            "index_name": {"display_name": "Index Name"},
-            "namespace": {"display_name": "Namespace"},
-            "pinecone_api_key": {
-                "display_name": "Pinecone API Key",
-                "default": "",
-                "password": True,
-                "required": True,
-            },
-            "pinecone_env": {
-                "display_name": "Pinecone Environment",
-                "default": "",
-                "required": True,
-            },
-            "pool_threads": {
-                "display_name": "Pool Threads",
-                "default": 1,
-                "advanced": True,
-            },
-        }
+    inputs = [
+        StrInput(name="index_name", display_name="Index Name", required=True),
+        StrInput(name="namespace", display_name="Namespace", info="Namespace for the index."),
+        DropdownInput(
+            name="distance_strategy",
+            display_name="Distance Strategy",
+            options=["Cosine", "Euclidean", "Dot Product"],
+            value="Cosine",
+            advanced=True,
+        ),
+        SecretStrInput(name="pinecone_api_key", display_name="Pinecone API Key", required=True),
+        StrInput(
+            name="text_key",
+            display_name="Text Key",
+            info="Key in the record to use as text.",
+            value="text",
+            advanced=True,
+        ),
+        MultilineInput(name="search_query", display_name="Search Query"),
+        DataInput(
+            name="ingest_data",
+            display_name="Ingest Data",
+            is_list=True,
+        ),
+        HandleInput(name="embedding", display_name="Embedding", input_types=["Embeddings"]),
+        IntInput(
+            name="number_of_results",
+            display_name="Number of Results",
+            info="Number of results to return.",
+            value=4,
+            advanced=True,
+        ),
+    ]
 
-    def build(
-        self,
-        embedding: Embeddings,
-        pinecone_env: str,
-        inputs: Optional[List[Record]] = None,
-        text_key: str = "text",
-        pool_threads: int = 4,
-        index_name: Optional[str] = None,
-        pinecone_api_key: Optional[str] = None,
-        namespace: Optional[str] = "default",
-    ) -> Union[VectorStore, Pinecone, BaseRetriever]:
-        if pinecone_api_key is None or pinecone_env is None:
-            raise ValueError("Pinecone API Key and Environment are required.")
-        if os.getenv("PINECONE_API_KEY") is None and pinecone_api_key is None:
-            raise ValueError("Pinecone API Key is required.")
+    def build_vector_store(self) -> Pinecone:
+        return self._build_pinecone()
 
-        pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)  # type: ignore
-        if not index_name:
-            raise ValueError("Index Name is required.")
+    def _build_pinecone(self) -> Pinecone:
+        from langchain_pinecone._utilities import DistanceStrategy
+        from langchain_pinecone.vectorstores import Pinecone
+
+        distance_strategy = self.distance_strategy.replace(" ", "_").upper()
+        _distance_strategy = DistanceStrategy[distance_strategy]
+
+        pinecone = Pinecone(
+            index_name=self.index_name,
+            embedding=self.embedding,
+            text_key=self.text_key,
+            namespace=self.namespace,
+            distance_strategy=_distance_strategy,
+            pinecone_api_key=self.pinecone_api_key,
+        )
+
         documents = []
-        for _input in inputs or []:
-            if isinstance(_input, Record):
+        for _input in self.ingest_data or []:
+            if isinstance(_input, Data):
                 documents.append(_input.to_lc_document())
             else:
                 documents.append(_input)
+
         if documents:
-            return Pinecone.from_documents(
-                documents=documents,
-                embedding=embedding,
-                index_name=index_name,
-                pool_threads=pool_threads,
-                namespace=namespace,
-                text_key=text_key,
+            pinecone.add_documents(documents)
+
+        return pinecone
+
+    def search_documents(self) -> List[Data]:
+        vector_store = self._build_pinecone()
+
+        if self.search_query and isinstance(self.search_query, str) and self.search_query.strip():
+            docs = vector_store.similarity_search(
+                query=self.search_query,
+                k=self.number_of_results,
             )
 
-        return Pinecone.from_existing_index(
-            index_name=index_name,
-            embedding=embedding,
-            text_key=text_key,
-            namespace=namespace,
-            pool_threads=pool_threads,
-        )
+            data = docs_to_data(docs)
+            self.status = data
+            return data
+        else:
+            return []

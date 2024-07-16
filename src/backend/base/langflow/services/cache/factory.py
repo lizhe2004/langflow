@@ -16,22 +16,23 @@ class CacheServiceFactory(ServiceFactory):
         # Here you would have logic to create and configure a CacheService
         # based on the settings_service
 
-        if settings_service.settings.CACHE_TYPE == "redis":
+        if settings_service.settings.cache_type == "redis":
             logger.debug("Creating Redis cache")
-            redis_cache = RedisCache(
-                host=settings_service.settings.REDIS_HOST,
-                port=settings_service.settings.REDIS_PORT,
-                db=settings_service.settings.REDIS_DB,
-                url=settings_service.settings.REDIS_URL,
-                expiration_time=settings_service.settings.REDIS_CACHE_EXPIRE,
+            redis_cache: RedisCache = RedisCache(
+                host=settings_service.settings.redis_host,
+                port=settings_service.settings.redis_port,
+                db=settings_service.settings.redis_db,
+                url=settings_service.settings.redis_url,
+                expiration_time=settings_service.settings.redis_cache_expire,
             )
             if redis_cache.is_connected():
                 logger.debug("Redis cache is connected")
                 return redis_cache
-            logger.warning("Redis cache is not connected, falling back to in-memory cache")
-            return ThreadingInMemoryCache()
+            else:
+                # do not attempt to fallback to another cache type
+                raise ConnectionError("Failed to connect to Redis cache")
 
-        elif settings_service.settings.CACHE_TYPE == "memory":
-            return ThreadingInMemoryCache()
-        elif settings_service.settings.CACHE_TYPE == "async":
-            return AsyncInMemoryCache()
+        elif settings_service.settings.cache_type == "memory":
+            return ThreadingInMemoryCache(expiration_time=settings_service.settings.cache_expire)
+        elif settings_service.settings.cache_type == "async":
+            return AsyncInMemoryCache(expiration_time=settings_service.settings.cache_expire)

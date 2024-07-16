@@ -2,8 +2,9 @@ import { useEffect } from "react";
 import { InputListComponentType } from "../../types/components";
 
 import _ from "lodash";
-import { classNames } from "../../utils/utils";
+import { classNames, cn } from "../../utils/utils";
 import IconComponent from "../genericIconComponent";
+import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
 export default function InputListComponent({
@@ -12,6 +13,7 @@ export default function InputListComponent({
   disabled,
   editNode = false,
   componentName,
+  playgroundDisabled,
 }: InputListComponentType): JSX.Element {
   useEffect(() => {
     if (disabled && value.length > 0 && value[0] !== "") {
@@ -24,20 +26,20 @@ export default function InputListComponent({
     value = [value];
   }
 
-  if (!value.length) value = [""];
+  if (!value?.length) value = [""];
 
   return (
     <div
       className={classNames(
         value.length > 1 && editNode ? "my-1" : "",
-        "flex flex-col gap-3"
+        "flex w-full flex-col gap-3",
       )}
     >
       {value.map((singleValue, idx) => {
         return (
           <div key={idx} className="flex w-full gap-3">
             <Input
-              disabled={disabled}
+              disabled={disabled || playgroundDisabled}
               type="text"
               value={singleValue}
               className={editNode ? "input-edit-node" : ""}
@@ -52,42 +54,52 @@ export default function InputListComponent({
                 idx
               }
             />
-            {idx === value.length - 1 ? (
-              <button
-                onClick={() => {
+            {idx === 0 ? (
+              <Button
+                unstyled
+                className={cn(
+                  disabled || playgroundDisabled
+                    ? "cursor-not-allowed text-muted-foreground"
+                    : "text-primary hover:text-accent-foreground",
+                )}
+                onClick={(e) => {
                   let newInputList = _.cloneDeep(value);
                   newInputList.push("");
                   onChange(newInputList);
+                  e.preventDefault();
                 }}
                 data-testid={
                   `input-list-plus-btn${
                     editNode ? "-edit" : ""
                   }_${componentName}-` + idx
                 }
+                disabled={disabled || playgroundDisabled}
               >
-                <IconComponent
-                  name="Plus"
-                  className={"h-4 w-4 hover:text-accent-foreground"}
-                />
-              </button>
+                <IconComponent name="Plus" className="h-4 w-4" />
+              </Button>
             ) : (
-              <button
+              <Button
+                unstyled
+                className={cn(
+                  disabled || playgroundDisabled
+                    ? "cursor-not-allowed text-muted-foreground"
+                    : "text-primary hover:text-accent-foreground",
+                )}
                 data-testid={
                   `input-list-minus-btn${
                     editNode ? "-edit" : ""
                   }_${componentName}-` + idx
                 }
-                onClick={() => {
+                onClick={(e) => {
                   let newInputList = _.cloneDeep(value);
                   newInputList.splice(idx, 1);
                   onChange(newInputList);
+                  e.preventDefault();
                 }}
+                disabled={disabled || playgroundDisabled}
               >
-                <IconComponent
-                  name="X"
-                  className="h-4 w-4 hover:text-status-red"
-                />
-              </button>
+                <IconComponent name="X" className="h-4 w-4" />
+              </Button>
             )}
           </div>
         );

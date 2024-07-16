@@ -1,6 +1,7 @@
-import { Loader2 } from "lucide-react";
+import { useGetTagsQuery } from "@/controllers/API/queries/store";
+import { cloneDeep } from "lodash";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import EditFlowSettings from "../../components/EditFlowSettingsComponent";
+import EditFlowSettings from "../../components/editFlowSettingsComponent";
 import IconComponent from "../../components/genericIconComponent";
 import { TagsSelector } from "../../components/tagsSelectorComponent";
 import { Button } from "../../components/ui/button";
@@ -22,9 +23,10 @@ import {
   removeFileNameFromComponents,
   removeGlobalVariableFromComponents,
 } from "../../utils/reactflowUtils";
-import { getTagsIds } from "../../utils/storeUtils";
-import ConfirmationModal from "../ConfirmationModal";
 import BaseModal from "../baseModal";
+import ConfirmationModal from "../confirmationModal";
+import ExportModal from "../exportModal";
+import getTagsIds from "./utils/get-tags-ids";
 
 export default function ShareModal({
   component,
@@ -47,18 +49,19 @@ export default function ShareModal({
 
   const setSuccessData = useAlertStore((state) => state.setSuccessData);
   const setErrorData = useAlertStore((state) => state.setErrorData);
-  const [internalOpen, internalSetOpen] = useState(children ? false : true);
+  const [internalOpen, internalSetOpen] =
+    setOpen !== undefined && open !== undefined
+      ? [open, setOpen]
+      : useState(children ? false : true);
   const [openConfirmationModal, setOpenConfirmationModal] = useState(false);
   const nameComponent = is_component ? "component" : "workflow";
-
-  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
-  const [loadingTags, setLoadingTags] = useState<boolean>(false);
   const [sharePublic, setSharePublic] = useState(true);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [unavaliableNames, setUnavaliableNames] = useState<
     { id: string; name: string }[]
   >([]);
   const saveFlow = useFlowsManagerStore((state) => state.saveFlow);
+  const { data, isFetching } = useGetTagsQuery();
 
   const [loadingNames, setLoadingNames] = useState(false);
 
@@ -66,21 +69,12 @@ export default function ShareModal({
   const description = component?.description ?? "";
 
   useEffect(() => {
-    if (open || internalOpen) {
+    if (internalOpen) {
       if (hasApiKey && hasStore) {
-        handleGetTags();
         handleGetNames();
       }
     }
-  }, [open, internalOpen, hasApiKey, hasStore]);
-
-  function handleGetTags() {
-    setLoadingTags(true);
-    getStoreTags().then((res) => {
-      setTags(res);
-      setLoadingTags(false);
-    });
-  }
+  }, [internalOpen, hasApiKey, hasStore]);
 
   async function handleGetNames() {
     setLoadingNames(true);
@@ -121,21 +115,22 @@ export default function ShareModal({
     }
 
     if (!update)
-      saveFlowStore(flow!, getTagsIds(selectedTags, tags), sharePublic).then(
-        successShare,
-        (err) => {
-          setErrorData({
-            title: "Error sharing " + is_component ? "component" : "flow",
-            list: [err["response"]["data"]["detail"]],
-          });
-        }
-      );
+      saveFlowStore(
+        flow!,
+        getTagsIds(selectedTags, cloneDeep(data) ?? []),
+        sharePublic,
+      ).then(successShare, (err) => {
+        setErrorData({
+          title: "Error sharing " + (is_component ? "component" : "flow"),
+          list: [err["response"]["data"]["detail"]],
+        });
+      });
     else
       updateFlowStore(
         flow!,
-        getTagsIds(selectedTags, tags),
+        getTagsIds(selectedTags, cloneDeep(data) ?? []),
         sharePublic,
-        unavaliableNames.find((e) => e.name === name)!.id
+        unavaliableNames.find((e) => e.name === name)!.id,
       ).then(successShare, (err) => {
         setErrorData({
           title: "Error sharing " + is_component ? "component" : "flow",
@@ -146,8 +141,7 @@ export default function ShareModal({
 
   const handleUpdateComponent = () => {
     handleShareComponent(true);
-    if (setOpen) setOpen(false);
-    else internalSetOpen(false);
+    internalSetOpen(false);
   };
 
   const handleExportComponent = () => {
@@ -180,7 +174,7 @@ export default function ShareModal({
               current?
             </span>
             <br></br>
-            <span className=" text-xs text-destructive ">
+            <span className="text-xs text-destructive">
               Note: This action is irreversible.
             </span>
           </ConfirmationModal.Content>
@@ -199,8 +193,20 @@ export default function ShareModal({
     <>
       <BaseModal
         size="smaller-h-full"
-        open={(!disabled && open) ?? internalOpen}
-        setOpen={setOpen ?? internalSetOpen}
+        open={!disabled && internalOpen}
+        setOpen={internalSetOpen}
+        onSubmit={() => {
+          const isNameAvailable = !unavaliableNames.some(
+            (element) => element.name === name,
+          );
+
+          if (isNameAvailable) {
+            handleShareComponent();
+            internalSetOpen(false);
+          } else {
+            setOpenConfirmationModal(true);
+          }
+        }}
       >
         <BaseModal.Trigger asChild>
           {children ? children : <></>}
@@ -223,8 +229,8 @@ export default function ShareModal({
           </div>
           <div className="mt-3 flex h-8 w-full">
             <TagsSelector
-              tags={tags}
-              loadingTags={loadingTags}
+              tags={data ?? []}
+              loadingTags={isFetching}
               disabled={false}
               selectedTags={selectedTags}
               setSelectedTags={setSelectedTags}
@@ -237,62 +243,55 @@ export default function ShareModal({
               onCheckedChange={(event: boolean) => {
                 setSharePublic(event);
               }}
+              data-testid="public-checkbox"
             />
-            <label htmlFor="public" className="export-modal-save-api text-sm ">
+            <label htmlFor="public" className="export-modal-save-api text-sm">
               Set {nameComponent} status to public
             </label>
           </div>
-          <span className=" text-xs text-destructive ">
+          <span className="text-xs text-destructive">
             <b>Attention:</b> API keys in specified fields are automatically
             removed upon sharing.
           </span>
         </BaseModal.Content>
 
-        <BaseModal.Footer>
-          <div className="flex w-full justify-between gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2"
-              onClick={() => {
-                handleExportComponent();
-                (setOpen || internalSetOpen)(false);
-              }}
-            >
-              <IconComponent name="Download" className="h-4 w-4" />
-              Export
-            </Button>
-            <Button
-              disabled={loadingNames}
-              type="button"
-              className={is_component ? "w-40" : "w-28"}
-              onClick={() => {
-                const isNameAvailable = !unavaliableNames.some(
-                  (element) => element.name === name
-                );
-
-                if (isNameAvailable) {
-                  handleShareComponent();
-                  (setOpen || internalSetOpen)(false);
-                } else {
-                  setOpenConfirmationModal(true);
-                }
-              }}
-            >
-              {loadingNames ? (
-                <>
-                  <div className="center">
-                    <Loader2 className="m-auto h-4 w-4 animate-spin"></Loader2>
-                  </div>
-                </>
-              ) : (
-                <>
-                  Share{" "}
-                  {!loadingNames && (!is_component ? "Flow" : "Component")}
-                </>
-              )}
-            </Button>
-          </div>
+        <BaseModal.Footer
+          submit={{
+            label: `Share ${is_component ? " Component" : " Flow"}`,
+            loading: loadingNames,
+          }}
+        >
+          <>
+            {!is_component && (
+              <ExportModal>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    // (setOpen || internalSetOpen)(false);
+                  }}
+                >
+                  <IconComponent name="Download" className="h-4 w-4" />
+                  Export
+                </Button>
+              </ExportModal>
+            )}
+            {is_component && (
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  internalSetOpen(false);
+                  handleExportComponent();
+                }}
+              >
+                <IconComponent name="Download" className="h-4 w-4" />
+                Export
+              </Button>
+            )}
+          </>
         </BaseModal.Footer>
       </BaseModal>
       <>{modalConfirmation}</>
